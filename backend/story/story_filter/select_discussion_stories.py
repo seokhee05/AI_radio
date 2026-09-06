@@ -1,11 +1,11 @@
 import json
 import os
 from dotenv import load_dotenv
-from google import genai
+from openai import OpenAI
 
 load_dotenv()
-# Gemini 클라이언트 초기화
-client = genai.Client()
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def select_discussion_stories(stories):
     """LLM으로 토론 주제로 발전할 사연을 골라줌"""

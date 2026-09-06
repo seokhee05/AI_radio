@@ -1,12 +1,12 @@
 import os
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+from openai import OpenAI
 from common.prompt_utils import build_block_prompt
 
 load_dotenv()
-# Gemini 클라이언트 초기화
-client = genai.Client()
+
+# OpenAI 클라이언트 초기화 (환경 변수 OPENAI_API_KEY 자동 인식)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def block_story_main(
     story,
@@ -61,10 +61,13 @@ def block_story_main(
             language="ko"
         )
 
-        # Gemini 모델 호출 (한국어)
-        response = client.models.generate_content(
-            model="gemini-3.6-flash",
-            contents=prompt,
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "당신은 감성적인 AI 라디오 DJ입니다."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
         )
 
     else:  # English version
@@ -107,7 +110,6 @@ def block_story_main(
             language="en"
         )
 
-        # 영어 버전은 시스템 인스트럭션과 유저 프롬프트를 나누어 적용
         system_content = "You are an empathetic Radio DJ. ALWAYS respond in English, no matter what the input language is."
         
         user_content = f"""
@@ -124,13 +126,13 @@ def block_story_main(
         {prompt}
         """
 
-        response = client.models.generate_content(
-            model="gemini-3.6-flash",
-            contents=user_content,
-            config=types.GenerateContentConfig(
-                system_instruction=system_content,
-                temperature=0.8,
-            ),
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.8,
         )
 
-    return response.text.strip()
+    return response.choices[0].message.content.strip()

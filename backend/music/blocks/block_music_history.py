@@ -1,12 +1,12 @@
 import os
-from dotenv import load_dotenv
 from datetime import datetime
-from google import genai
+from dotenv import load_dotenv
+from openai import OpenAI
 from common.prompt_utils import build_block_prompt
 
 load_dotenv()
-# Gemini 클라이언트 초기화
-client = genai.Client()
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def block_music_history(keyword=None, prev_type=None, context=None, language="ko"):
     today = datetime.now().strftime("%m월 %d일")
@@ -58,9 +58,11 @@ def block_music_history(keyword=None, prev_type=None, context=None, language="ko
         context=context
     )
 
-    # Gemini 모델로 음악 역사 스크립트 생성
-    response = client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=prompt,
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7,
     )
-    return response.text.strip()
+    return response.choices[0].message.content.strip()

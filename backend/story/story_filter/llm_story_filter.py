@@ -1,12 +1,12 @@
 import json
 import os
 from dotenv import load_dotenv
-from google import genai
+from openai import OpenAI
 from tqdm import tqdm
 
 load_dotenv()
 # Gemini 클라이언트 초기화
-client = genai.Client()
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     
 def filter_stories_by_llm(input_path="story/candidate_stories.json", output_path="story/story.json"):
     with open(input_path, "r", encoding="utf-8") as f:
@@ -36,10 +36,19 @@ def filter_stories_by_llm(input_path="story/candidate_stories.json", output_path
         """
 
     try:
-        # Gemini 모델 호출 (텍스트 생성)
         response = client.models.generate_content(
-            model="gemini-3.6-flash",
-            contents=prompt,
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "당신은 사연을 선별하는 라디오 DJ입니다. 반드시 요청한 형식(예:"
+                        " 2, 5, 8)으로 번호만 콤마로 구분해 출력하세요."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
         )
         result = response.text.strip()
         print("LLM 응답:", result)

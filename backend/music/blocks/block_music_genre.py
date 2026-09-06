@@ -1,12 +1,13 @@
 import os
-from dotenv import load_dotenv
 import random
-from google import genai
+from dotenv import load_dotenv
+from openai import OpenAI
 from common.prompt_utils import build_block_prompt
 
 load_dotenv()
-# Gemini 클라이언트 초기화
-client = genai.Client()
+
+# OpenAI 클라이언트 초기화
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def block_music_genre(keyword=None, prev_type=None, context=None, language="ko"):
     genres_ko = ["재즈", "록", "EDM", "발라드", "힙합", "인디"]
@@ -63,9 +64,12 @@ def block_music_genre(keyword=None, prev_type=None, context=None, language="ko")
         context=context
     )
 
-    # Gemini 모델로 장르 코너 스크립트 생성
-    response = client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=prompt,
+    # OpenAI Chat Completion 호출 (별도 system 역할 없이 단일 user 메시지로 처리)
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7,
     )
-    return response.text.strip()
+    return response.choices[0].message.content.strip()

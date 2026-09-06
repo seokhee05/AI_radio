@@ -1,11 +1,11 @@
 import os
 from dotenv import load_dotenv
-from google import genai
+from openai import OpenAI
 from common.prompt_utils import build_block_prompt
 
 load_dotenv()
-# Gemini 클라이언트 초기화
-client = genai.Client()
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def block_music_trend(keyword=None, prev_type=None, context=None, language="ko"):
     if language == "ko":
@@ -25,7 +25,7 @@ def block_music_trend(keyword=None, prev_type=None, context=None, language="ko")
         4. 곡 추천: 트렌드를 반영한 2곡 (예: - 곡명 - 아티스트)
         5. keyword가 있으면 (예: "가을") 분위기에 맞는 트렌드 곡을 하나 더 추천해주세요.
         6. 곡을 단순 나열하지 말고, **“이 곡을 함께 들어보시죠 / 지금 들어볼까요 / 듣고 오겠습니다”**처럼
-           청취자와 함께 듣는 듯한 표현을 해주세요.
+            청취자와 함께 듣는 듯한 표현을 해주세요.
         7. 곡 이후에는 **“잘 듣고 오셨나요? / 분위기 참 좋네요”** 같은 후속 멘트로 마무리해주세요.
         8. 표현은 매번 다르게 해주세요. (고정된 멘트 금지)
         
@@ -63,12 +63,14 @@ def block_music_trend(keyword=None, prev_type=None, context=None, language="ko")
         context=context
     )
 
-    # Gemini 모델로 음악 트렌드 스크립트 생성
-    response = client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=prompt,
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7,
     )
-    return response.text.strip()
+    return response.choices[0].message.content.strip()
 
 
 if __name__ == "__main__":

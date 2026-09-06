@@ -3,12 +3,24 @@
 # --------------------
 __pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
 *.log
-.env
 venv/
 .venv/
+
+# --------------------
+# Environment Variables (API Keys)
+# --------------------
+.env
 .env.*
+*.env
+*.env.*
+frontend/.env*
+backend/.env*
+# 템플릿 파일은 Git에 올릴 수 있도록 예외 허용
+!.env.example
+!*.env.example
 
 # --------------------
 # Node.js (React frontend)
@@ -30,12 +42,6 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
-
-# --------------------
-# dotenv for frontend/backend
-# --------------------
-frontend/.env
-backend/.env
 
 # --------------------
 # Static Audio or Temporary Files

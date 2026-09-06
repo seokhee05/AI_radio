@@ -1,23 +1,23 @@
 import os
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
-from news.llm.prompt_builder import build_summary_prompt
 import re
+from dotenv import load_dotenv
+from openai import OpenAI
+from news.llm.prompt_builder import build_summary_prompt
 
 load_dotenv()
-# Gemini 클라이언트 초기화
-client = genai.Client()
+
+# OpenAI 클라이언트 초기화 (OPENAI_API_KEY 환경변수 자동 인식)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # 기사 본문을 받아 요약과 DJ 멘트를 생성하는 함수
 def summarize_article(article_text: str,
-                        model: str = "gemini-3.6-flash", # 모델명도 제미나이로 기본값 변경
-                        mode: str = "headline", 
-                        prev_type: str = None,
-                        context: str = None,
-                        block_name: str = "NEWS",
-                        language: str = "ko"
-                        ) -> dict:
+                    model: str = "gpt-4o-mini",
+                    mode: str = "headline", 
+                    prev_type: str = None,
+                    context: str = None,
+                    block_name: str = "NEWS",
+                    language: str = "ko"
+                    ) -> dict:
     if mode == "deep":
         target_length = "1500~2000자 (10~15분 분량)"
     elif mode == "headline":
@@ -50,17 +50,22 @@ def summarize_article(article_text: str,
                 "Your tone should be conversational, thoughtful, and engaging, as if talking naturally with the audience."
             )
 
-        # Gemini SDK 방식의 시스템 프롬프트 및 콘텐츠 호출 설정
-        response = client.models.generate_content(
-            model=model if model != "gpt-4o" else "gemini-3.6-flash",  # 혹시 모델명이 gpt-4o로 넘어오면 제미나이로 대체
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system_content,
-                temperature=0.7,
-            ),
+        # Gemini 모델명이 그대로 넘어왔을 경우 GPT로 매핑
+        use_model = model
+        if "gemini" in model.lower():
+            use_model = "gpt-4o-mini"
+
+        # OpenAI Chat Completion 호출
+        response = client.chat.completions.create(
+            model=use_model,
+            messages=[
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
         )
 
-        script = response.text.strip()
+        script = response.choices[0].message.content.strip()
 
         return {
             "success": True,

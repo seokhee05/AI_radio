@@ -1,13 +1,14 @@
-import os
-from dotenv import load_dotenv
-import random
 import json
-from google import genai
+import os
+import random
+from dotenv import load_dotenv
+from openai import OpenAI
 from common.prompt_utils import build_block_prompt
 
 load_dotenv()
-# Gemini 클라이언트 초기화
-client = genai.Client()
+
+# OpenAI 클라이언트 초기화
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # 키워드 기반 아티스트 선택 (LLM)
 def pick_artist_by_llm(keyword: str = None, language="ko") -> str:
@@ -44,12 +45,15 @@ def pick_artist_by_llm(keyword: str = None, language="ko") -> str:
             Reply with only the artist's name.
             """
 
-    # Gemini 모델로 아티스트 추천 받기 (gemini-3.6-flash 사용)
-    res = client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=prompt,
+    # OpenAI Chat Completion 호출
+    res = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7,
     )
-    return res.text.strip()
+    return res.choices[0].message.content.strip()
 
 # 메인 블록
 def block_music_artist(keyword=None, prev_type=None, context=None, language="ko"):
@@ -102,12 +106,15 @@ def block_music_artist(keyword=None, prev_type=None, context=None, language="ko"
         context=context
     )
 
-    # Gemini 모델로 메인 DJ 스크립트 생성
-    response = client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=prompt,
+    # OpenAI Chat Completion 호출 (단일 user 메시지 전달)
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7,
     )
-    return response.text.strip()
+    return response.choices[0].message.content.strip()
 
 if __name__ == "__main__":
     print(block_music_artist("가을", language="ko"))
