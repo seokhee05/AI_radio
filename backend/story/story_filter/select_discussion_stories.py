@@ -31,12 +31,14 @@ def select_discussion_stories(stories):
     예: 2, 5
     """
 
-    # Gemini 모델 호출
-    response = client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=prompt,
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.3,
     )
-    result = response.text.strip()
+    result = response.choices[0].message.content.strip()
 
     indices = []
     for part in result.split(","):
