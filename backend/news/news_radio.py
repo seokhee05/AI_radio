@@ -6,8 +6,8 @@ from news.blocks.block_additional_news import block_additional_news
 def run_news_radio(blocks: list[str], keyword: str = None, prev_type=None, context=None, language: str = "ko") -> str:
     output_lines = []
 
-    # 🗓️ 뉴스 크롤링 (한 번만 실행)
-    date_text, deep_news, head_line_news, current_news = crawl_kbs_program_news()
+    # 🗓️ 뉴스 크롤링 (키워드 전달)
+    date_text, deep_news, head_line_news, current_news = crawl_kbs_program_news(keyword=keyword)
 
     for b in blocks:
         if b == "headline":

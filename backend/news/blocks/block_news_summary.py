@@ -1,33 +1,40 @@
 from news.crawl_kbs_program_news import extract_article_body
 from news.llm.summarizer import summarize_article
 
-def block_news_summary(date_text, head_line_news, prev_type=None, context=None, language="ko") -> str:
+def block_news_summary(date_text: str, head_line_news: list, prev_type=None, context=None, language="ko") -> str:
     output_lines = []
-    output_lines.append(f"🗓️ {date_text}\n")
-    output_lines.append("🌟 오늘의 헤드라인 뉴스입니다.")
+    
+    # 1. 깔끔한 단일 오프닝 멘트
+    intro_ment = f"지금 시각 주요 뉴스입니다. {date_text} 헤드라인 브리핑을 전해드립니다."
+    output_lines.append(intro_ment)
+
+    # 기사 간 자연스러운 호흡 연결을 위한 컨텍스트
+    current_context = intro_ment
 
     for idx, news in enumerate(head_line_news):
-        title, url = news["title"], news["url"]
-        #output_lines.append(f"📰 ({idx+1}) {title}")
-
+        title, url = news.get("title", ""), news.get("url", "")
+        
         body = extract_article_body(url)
         if not body:
-            output_lines.append("⚠️ 본문 없음\n")
-            continue
+            body = title
+
+        # 첫 번째 기사는 이미 인트로가 있으므로 전환 멘트를 붙이지 않음 (prev_type=None)
+        item_prev_type = None if idx == 0 else "headline_item"
 
         result = summarize_article(
             body,
             mode="headline",
-            prev_type=prev_type,
-            context=context,
+            prev_type=item_prev_type,
+            context=current_context,
             block_name="HEADLINE_NEWS",
             language=language
         )
 
-        if result["success"]:
-            # 한 뉴스당 5분 분량 (700~800자) 확보
-            output_lines.append(result["script"])
+        if result.get("success"):
+            script_text = result["script"]
+            output_lines.append(script_text)
+            current_context = script_text[-250:]
         else:
-            output_lines.append(f"⚠️ 요약 실패: {result['error']}\n")
-    
-    return "\n".join(output_lines)
+            output_lines.append(f"⚠️ 요약 실패: {result.get('error')}")
+
+    return "\n\n".join(output_lines)
