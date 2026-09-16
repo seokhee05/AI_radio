@@ -8,10 +8,12 @@ export default function ContentsSelector({ onChange }) {
   const handleChange = (name, label) => {
     setSelectedBlocks((prev) => {
       let updated;
-      if (prev.some((b) => b.name === name)) {
-        updated = prev.filter((b) => b.name !== name);
+      
+      // ✨ 핵심 로직: 이미 선택된 걸 또 누르면 빈 배열(해제), 아니면 방금 누른 것 1개만 덮어쓰기!
+      if (prev.length > 0 && prev[0].name === name) {
+        updated = [];
       } else {
-        updated = [...prev, { name, label }];
+        updated = [{ name, label }];
       }
 
       if (onChange) {
@@ -24,7 +26,8 @@ export default function ContentsSelector({ onChange }) {
   };
 
   return (
-    <div className="mt-2 flex grid-cols-4 flex-wrap gap-2">
+    // grid-cols-4와 flex가 섞여있어서 꼬일 수 있는 클래스도 깔끔하게 flex-wrap으로 정리했어
+    <div className="mt-2 flex flex-wrap gap-2">
       {/* 뉴스 */}
       <ContentsBlock
         name="headline"
