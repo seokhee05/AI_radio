@@ -26,7 +26,6 @@ export default function ContentsSelector({ onChange }) {
   };
 
   return (
-    // grid-cols-4와 flex가 섞여있어서 꼬일 수 있는 클래스도 깔끔하게 flex-wrap으로 정리했어
     <div className="mt-2 flex flex-wrap gap-2">
       {/* 뉴스 */}
       <ContentsBlock
@@ -65,7 +64,7 @@ export default function ContentsSelector({ onChange }) {
       {/* 음악 */}
       <ContentsBlock
         name="music_history"
-        label="📀 음악 역사"
+        label="🕰️ 음악 역사"
         active={selectedBlocks.some((b) => b.name === "music_history")}
         onClick={handleChange}
       />
@@ -83,10 +82,17 @@ export default function ContentsSelector({ onChange }) {
       />
       <ContentsBlock
         name="music_artist"
-        label="🌟 아티스트 집중 조명"
+        label="🎤 아티스트 집중 조명"
         active={selectedBlocks.some((b) => b.name === "music_artist")}
         onClick={handleChange}
       />
+      {/* 교통 */}
+      <ContentsBlock 
+        name="traffic" 
+        label="🚗 교통 정보" 
+        active={selectedBlocks.some((b) => b.name === "traffic")} 
+        onClick={handleChange} 
+      /> 
     </div>
   );
 }
