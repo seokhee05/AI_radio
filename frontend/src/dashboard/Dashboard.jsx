@@ -84,11 +84,39 @@ export default function Dashboard() {
     keywordPlaceholder = "추가 뉴스는 키워드를 입력할 수 없습니다.";
   }
 
+  // ✨ 객체가 중첩되어 들어와도 안전하게 문자열(텍스트)로 추출하는 헬퍼 함수
+  // ✨ 배열, 객체, 중첩 구조가 와도 텍스트만 쏙 빼내는 강력한 헬퍼 함수
+  const renderScriptContent = (item) => {
+    if (typeof item === "string") return item;
+    
+    // 만약 배열 형태라면 내부 아이템들을 각각 풀어서 합쳐줌
+    if (Array.isArray(item)) {
+      return item.map((sub) => renderScriptContent(sub)).join("\n\n");
+    }
+    
+    // 객체 형태라면 content 속성을 우선적으로 찾고, 없으면 재귀 탐색
+    if (typeof item === "object" && item !== null) {
+      if (item.content) {
+        return renderScriptContent(item.content);
+      }
+      // 내부에 text나 message 같은 다른 키가 있을 경우 대비
+      if (item.text) {
+        return renderScriptContent(item.text);
+      }
+      return Object.values(item)
+        .map((val) => renderScriptContent(val))
+        .join("\n\n");
+    }
+    
+    return String(item || "");
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 relative">
       <div
-        className={`mx-auto flex flex-col xl:flex-row gap-8 items-start transition-all duration-500 ease-in-out ${scripts.length > 0 ? "w-full max-w-[1700px]" : "max-w-2xl"
-          }`}
+        className={`mx-auto flex flex-col xl:flex-row gap-8 items-start transition-all duration-500 ease-in-out ${
+          scripts.length > 0 ? "w-full max-w-[1700px]" : "max-w-2xl"
+        }`}
       >
         <main
           className="w-full max-w-2xl shrink-0 rounded-2xl bg-white p-8 shadow-xl border border-slate-100 transition-all xl:sticky xl:top-12"
@@ -118,10 +146,11 @@ export default function Dashboard() {
                 onChange={(e) => setKeyword(e.target.value)}
                 disabled={isKeywordDisabled}
                 placeholder={keywordPlaceholder}
-                className={`w-full rounded-xl border p-3.5 transition-all duration-200 ${isKeywordDisabled
+                className={`w-full rounded-xl border p-3.5 transition-all duration-200 ${
+                  isKeywordDisabled
                     ? "cursor-not-allowed border-slate-200 bg-slate-200 text-slate-400 placeholder:text-slate-400"
                     : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
-                  }`}
+                }`}
               />
             </section>
 
@@ -140,7 +169,6 @@ export default function Dashboard() {
                     setSelectedBlocks(names);
                     setSelectedBlocksShow(labels);
 
-                    // ✨ 키워드를 먼저 입력한 상태에서 헤드라인이나 추가 뉴스를 선택하면 키워드 초기화
                     if (names.includes("headline") || names.includes("current")) {
                       setKeyword("");
                     }
@@ -176,10 +204,11 @@ export default function Dashboard() {
             <button
               onClick={handlePlayRadio}
               disabled={loading || selectedBlocks.length === 0}
-              className={`w-full rounded-xl py-4 text-lg font-bold text-white transition-all duration-200 ${loading || selectedBlocks.length === 0
+              className={`w-full rounded-xl py-4 text-lg font-bold text-white transition-all duration-200 ${
+                loading || selectedBlocks.length === 0
                   ? "cursor-not-allowed bg-slate-300"
                   : "bg-blue-600 shadow-md hover:bg-blue-700 hover:shadow-lg active:scale-[0.98]"
-                }`}
+              }`}
             >
               {loading ? "스크립트를 생성하는 중..." : "스크립트 생성하기"}
             </button>
@@ -219,11 +248,11 @@ export default function Dashboard() {
 
                   <div className="mb-4 flex items-center gap-2">
                     <span className="rounded-lg bg-blue-100 px-3 py-1.5 text-xs font-bold tracking-wider text-blue-700 uppercase">
-                      {s.type}
+                      {typeof s.type === "object" && s.type !== null ? (s.type.name || JSON.stringify(s.type)) : String(s.type || "SCRIPT")}
                     </span>
                   </div>
                   <p className="whitespace-pre-wrap text-left text-[15.5px] leading-relaxed text-slate-700 tracking-wide break-keep">
-                    {s.content}
+                    {renderScriptContent(s)}
                   </p>
                 </section>
               ))}
@@ -258,10 +287,11 @@ export default function Dashboard() {
 
             <button
               onClick={() => setModal({ ...modal, isOpen: false })}
-              className={`w-full rounded-xl py-3.5 font-bold text-white transition-all active:scale-[0.98] ${modal.type === "success"
+              className={`w-full rounded-xl py-3.5 font-bold text-white transition-all active:scale-[0.98] ${
+                modal.type === "success"
                   ? "bg-emerald-600 hover:bg-emerald-700"
                   : "bg-rose-600 hover:bg-rose-700"
-                }`}
+              }`}
             >
               확인
             </button>
