@@ -44,31 +44,33 @@ def summarize_article(article_text: str,
     )
 
     try:
-        # 모드별 진행자 페르소나 설정
+        # 모드별 진행자 페르소나 설정 (시스템 블록 이름/전환 멘트 엄금 조건 추가)
         if language == "ko":
             if mode == "headline":
                 system_content = (
                     "당신은 신속하고 명확하게 소식을 전달하는 라디오 뉴스 앵커입니다. "
                     "군더더기 없는 두괄식 구어체(~습니다, ~입니다)로 팩트와 전말을 매끄럽게 전달하세요. "
-                    "마크다운(#, ** 등)이나 이모지는 일절 쓰지 마세요."
+                    "마크다운(#, ** 등)이나 이모지는 일절 쓰지 마세요. "
+                    "특히 '이제 [DEEP_NEWS] 코너로...' 같은 시스템 블록 이름이나 코너 전환 안내 멘트는 절대 포함하지 마세요."
                 )
             else:
                 system_content = (
                     "당신은 청취자와 시사 이슈를 깊이 있게 나누는 AI 라디오 진행자입니다. "
                     "추상적인 위로보다는 사건의 전말과 쟁점, 배경을 알기 쉽게 풀어서 설명해주고, "
                     "청취자가 귀로 들었을 때 몰입할 수 있도록 자연스러운 방송 구어체로 작성하세요. "
-                    "마크다운(#, ** 등)이나 이모지는 일절 쓰지 마세요."
+                    "마크다운(#, ** 등)이나 이모지는 일절 쓰지 마세요. "
+                    "특히 '이제 [DEEP_NEWS] 코너로...' 같은 시스템 블록 이름이나 코너 전환 안내 멘트는 절대 포함하지 마세요."
                 )
         else:
             if mode == "headline":
                 system_content = (
                     "You are a professional radio news anchor delivering concise, factual headline updates. "
-                    "Do not use markdown or emojis."
+                    "Do not use markdown, emojis, or system block transition phrases like DEEP_NEWS."
                 )
             else:
                 system_content = (
                     "You are an empathetic and insightful AI radio host exploring news topics in depth. "
-                    "Do not use markdown or emojis."
+                    "Do not use markdown, emojis, or system block transition phrases like DEEP_NEWS."
                 )
 
         use_model = model
@@ -87,6 +89,10 @@ def summarize_article(article_text: str,
         )
 
         script = response.choices[0].message.content.strip()
+
+        # 🧹 [안전 장치] 어색한 시스템 코너 전환 멘트 및 블록 이름 정규식 강제 제거
+        script = re.sub(r"이제\s*\[?DEEP_NEWS\]?\s*코너로.*?(넘어가겠습니다|시작하겠습니다|살펴보겠습니다)\.?", "", script).strip()
+        script = re.sub(r"\[?DEEP_NEWS\]?", "", script).strip()
 
         return {
             "success": True,

@@ -1,32 +1,27 @@
 import { useState } from "react";
 import ContentsBlock from "./ContentsBlock";
 
-export default function ContentsSelector({ onChange }) {
+export default function ContentSelector({ onChange }) {
   const [selectedBlocks, setSelectedBlocks] = useState([]);
 
   // 부모(Dashboard)로 값 전달
   const handleChange = (name, label) => {
-    setSelectedBlocks((prev) => {
-      let updated;
-      
-      // ✨ 핵심 로직: 이미 선택된 걸 또 누르면 빈 배열(해제), 아니면 방금 누른 것 1개만 덮어쓰기!
-      if (prev.length > 0 && prev[0].name === name) {
-        updated = [];
-      } else {
-        updated = [{ name, label }];
-      }
+    // 1. 상태 업데이트할 값을 미리 계산
+    const isSame = selectedBlocks.length > 0 && selectedBlocks[0].name === name;
+    const updated = isSame ? [] : [{ name, label }];
 
-      if (onChange) {
-        const names = updated.map((b) => b.name); // API용
-        const labels = updated.map((b) => b.label); // UI용
-        onChange(names, labels);
-      }
-      return updated;
-    });
+    // 2. 내부 상태 업데이트
+    setSelectedBlocks(updated);
+
+    // 3. 부모 컴포넌트의 렌더링 충돌을 막기 위해 상태 변경 외의 작업은 바깥에서 수행
+    if (onChange) {
+      const names = updated.map((b) => b.name); // API용
+      const labels = updated.map((b) => b.label); // UI용
+      onChange(names, labels);
+    }
   };
 
   return (
-    // grid-cols-4와 flex가 섞여있어서 꼬일 수 있는 클래스도 깔끔하게 flex-wrap으로 정리했어
     <div className="mt-2 flex flex-wrap gap-2">
       {/* 뉴스 */}
       <ContentsBlock
@@ -48,17 +43,11 @@ export default function ContentsSelector({ onChange }) {
         onClick={handleChange}
       />
 
-      {/* 사연 */}
+      {/* 사연 (공감과 토론을 하나의 세트로 통합) */}
       <ContentsBlock
         name="story_main"
-        label="🎙️ 사연 공감"
+        label="🎙️ 사연 토크"
         active={selectedBlocks.some((b) => b.name === "story_main")}
-        onClick={handleChange}
-      />
-      <ContentsBlock
-        name="story_discussion"
-        label="💬 사연 토론"
-        active={selectedBlocks.some((b) => b.name === "story_discussion")}
         onClick={handleChange}
       />
 
