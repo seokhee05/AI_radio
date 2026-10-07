@@ -116,43 +116,6 @@ def run_traffic_radio(block_types, keyword=None, language="ko", prev_type=None, 
     highway_info = fetch_its_highway_data()
 
     prompt = f"""
-    당신은 심야 라디오 프로그램의 다정다감하고 센스 있는 메인 DJ입니다.
-    이전 코너의 흐름(직전 유형: {prev_type}, 내용 참고: {context[-200:] if context else '없음'})을 이어받아 자연스럽게 진행해주세요.
-    
-    오늘 실시간으로 수집된 부산 지역의 교통 상황입니다. (고속도로 소식이 먼저 안내되도록 구성되어 있습니다.)
-    
-    {highway_info}
-    
-    위 데이터를 바탕으로, 늦은 밤 도로를 달리는 청취자들을 위한 **생생한 교통 정보 안내**와 함께, **운전에 도움이 되는 흥미롭고 유용한 교통 상식이나 야간 운전 꿀팁(매번 조금씩 다른 참신하고 실용적인 주제를 자유롭게 선정해주세요)**을 하나의 라디오 대본 형식으로 자연스럽게 작성해주세요.
-    
-    [작성 원칙]
-    1. 딱딱한 뉴스 톤이 아니라, 심야 라디오 DJ가 따뜻하게 읽어주듯 친근하고 부드러운 어조를 사용해주세요.
-    2. **대본 시작할 때 "심야의 고요함 속에서 함께하는 DJ [당신의 이름]입니다." 라는 문구는 절대 사용하지 마세요.**
-    3. 고속도로 소식을 먼저 비중 있게 다뤄주시고, 시내 간선도로 소식을 이은 뒤, 자연스럽게 '오늘의 운전 꿀팁/상식 코너'로 이어지도록 구성해주세요.
-    4. 뻔한 졸음운전 예방 이야기뿐만 아니라, 야간 주행 시 알아두면 좋은 매너나 상식 등 **매번 새롭고 다양한 주제**를 고민해서 담아주세요.
-    5. 전체 분량이 너무 지루하지 않게 핵심 위주로 깔끔하게 구성해주세요.
-    """
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.8,
-            max_tokens=1800,
-        )
-        content = response.choices[0].message.content.strip()
-
-    except Exception as e:
-        print(f"교통 방송 대본 생성 중 오류 발생: {e}")
-        content = "오늘의 실시간 교통 정보 및 안전 소식을 전해드렸습니다..."
-
-    return content  
-
-def run_traffic_radio(block_types, keyword=None, language="ko", prev_type=None, context=None):
-    """메인 라디오 시스템에서 호출되는 교통 정보 블록 핸들러 함수"""
-    highway_info = fetch_its_highway_data()
-
-    prompt = f"""
     당신은 라디오 프로그램의 다정다감하고 센스 있는 메인 DJ입니다.
     이전 코너의 흐름(직전 유형: {prev_type}, 내용 참고: {context[-200:] if context else '옵션'})을 이어받아 자연스럽게 진행해주세요.
     
