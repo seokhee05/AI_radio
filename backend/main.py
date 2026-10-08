@@ -7,6 +7,7 @@ from music.music_radio import run_music_radio
 from news.news_radio import run_news_radio
 from story.story_radio import run_story_radio
 from traffic.traffic_radio import run_traffic_radio  # 💡 교통 모듈 임포트 추가
+from news.blocks.block_additional_news import block_additional_news
 
 app = FastAPI()
 
@@ -35,12 +36,11 @@ BLOCK_HANDLERS = {
         prev_type=prev_type,
         context=context,
     ),
-    "current": lambda keyword, language, prev_type, context: run_news_radio(
-        ["current"],
-        keyword=keyword,
-        language=language,
+    "busan": lambda keyword, language, prev_type, context: block_additional_news(
+        current_news=keyword,
         prev_type=prev_type,
         context=context,
+        language=language,
     ),
     # 사연
     "story_main": lambda keyword, language, prev_type, context: run_story_radio(
