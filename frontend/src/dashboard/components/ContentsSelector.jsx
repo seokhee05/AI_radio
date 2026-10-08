@@ -76,6 +76,14 @@ export default function ContentSelector({ onChange }) {
         active={selectedBlocks.some((b) => b.name === "music_artist")}
         onClick={handleChange}
       />
+
+      {/* 교통 */}
+      <ContentsBlock 
+        name="traffic" 
+        label="🚗 교통 정보" 
+        active={selectedBlocks.some((b) => b.name === "traffic")} 
+        onClick={handleChange} 
+      /> 
     </div>
   );
 }
