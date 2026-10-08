@@ -71,17 +71,17 @@ export default function Dashboard() {
     }
   };
 
-  // ✨ 헤드라인(headline)이나 추가 뉴스(current) 선택 시 키워드 입력 제한
+  // ✨ 헤드라인(headline)이나 추가 뉴스(busan) 선택 시 키워드 입력 제한
   const isHeadline = selectedBlocks.includes("headline");
-  const isCurrent = selectedBlocks.includes("current");
-  const isKeywordDisabled = isHeadline || isCurrent;
+  const isBusan = selectedBlocks.includes("busan");
+  const isKeywordDisabled = isHeadline || isBusan;
 
   // ✨ 선택된 콘텐츠에 따른 맞춤형 placeholder 결정
   let keywordPlaceholder = "예: 인공지능, 가족여행, 출근";
   if (isHeadline) {
     keywordPlaceholder = "헤드라인 뉴스는 키워드를 입력할 수 없습니다.";
-  } else if (isCurrent) {
-    keywordPlaceholder = "추가 뉴스는 키워드를 입력할 수 없습니다.";
+  } else if (isBusan) {
+    keywordPlaceholder = "부산 뉴스는 키워드를 입력할 수 없습니다.";
   }
 
   // ✨ 객체가 중첩되어 들어와도 안전하게 문자열(텍스트)로 추출하는 헬퍼 함수
@@ -169,7 +169,7 @@ export default function Dashboard() {
                     setSelectedBlocks(names);
                     setSelectedBlocksShow(labels);
 
-                    if (names.includes("headline") || names.includes("current")) {
+                    if (names.includes("headline") || names.includes("busan")) {
                       setKeyword("");
                     }
                   }}

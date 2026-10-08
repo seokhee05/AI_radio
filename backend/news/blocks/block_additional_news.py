@@ -1,56 +1,110 @@
-import requests
+import os
+import time
 from bs4 import BeautifulSoup
-from news.crawl_kbs_program_news import extract_article_body
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+import re
+
 from news.llm.summarizer import summarize_article
+
+BASE_URL = "https://busan.kbs.co.kr"
+
+def init_headless_driver() -> webdriver.Chrome:
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--log-level=3")
+    options.add_argument(
+        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
+    options.add_experimental_option("excludeSwitches", ["enable-logging"])
+    service = Service(log_path=os.devnull)
+    return webdriver.Chrome(service=service, options=options)
+
+def extract_article_body(url: str) -> str:
+    driver = init_headless_driver()
+    try:
+        driver.get(url)
+        time.sleep(1.5)
+
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+        body_container = soup.select_one("div#cont_newstext") or soup.select_one(
+            "div.detail-body"
+        )
+
+        if not body_container:
+            return ""
+
+        full_text = body_container.get_text(separator="\n", strip=True)
+
+        full_text = re.sub(r"KBS\s*뉴스\s+[가-힣]{2,4}\s*입니다\.?", "", full_text)
+        full_text = re.sub(r"\[[가-힣\s]+\]", "", full_text)
+        full_text = re.sub(r"[가-힣]{2,4}\s*기자\s*.*", "", full_text, flags=re.DOTALL)
+        full_text = re.sub(
+            r"영상취재.*|영상편집.*|그래픽.*", "", full_text, flags=re.DOTALL
+        )
+
+        return full_text.strip()
+    except Exception as e:
+        print(f"본문 크롤링 실패 ({url}): {e}")
+        return ""
+    finally:
+        driver.quit()
 
 def block_additional_news(current_news, prev_type=None, context=None, language="ko"):
     output_lines = []
-    selected = []
+    collected_articles = []
     
-    # 1. 키워드 검색 없이, KBS 로컬(부산) 뉴스 URL에서 직접 크롤링
+    driver = init_headless_driver()
+    
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        # KBS 뉴스 '부산' 지역 카테고리 URL (실제 운영되는 KBS 부산 뉴스 페이지 주소로 변경 가능)
-        kbs_busan_url = "https://news.kbs.co.kr/news/pc/category/category.do?icd=2021-0004"
+        driver.get(BASE_URL)
+        time.sleep(4.0)  # 충분한 로딩 대기
         
-        response = requests.get(kbs_busan_url, headers=headers)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
         
-        # KBS 웹페이지 구조에 맞춰 기사 제목과 링크가 있는 <a> 태그를 찾음
-        # (웹페이지 디자인에 따라 '.box-news a' 등 클래스명은 변경될 수 있습니다)
-        articles = soup.select('a.news-link') 
+        # 기사 링크 수집 패턴
+        articles = soup.find_all('a', href=re.compile(r'news|view'))
+        
+        exclude_words = ["기사더보기", "전체메뉴", "KBS뉴스", "로그인", "제보", "날씨", "스포츠", "영상", "포토", "바로가기", "시청자"]
+        seen_urls = set()
         
         for article in articles:
             href = article.get('href', '')
-            title = article.text.strip()
+            title = article.get_text(strip=True)
             
-            # 유효한 기사 링크와 제목이 있는지 확인하고 리스트에 추가
-            if href and title:
-                # 상대 경로로 되어 있을 경우를 대비해 절대 경로로 변환
+            if href and title and len(title) > 8:
+                if any(word in title for word in exclude_words):
+                    continue
+                
                 if href.startswith('/'):
                     href = f"https://news.kbs.co.kr{href}"
+                elif not href.startswith('http'):
+                    href = f"https://news.kbs.co.kr/{href}"
+                
+                if href in seen_urls:
+                    continue
                     
-                selected.append({
+                seen_urls.add(href)
+                collected_articles.append({
                     "title": title,
                     "url": href
                 })
                 
-            # 3개만 추출하면 반복문 종료
-            if len(selected) >= 3:
+            if len(collected_articles) >= 3:
                 break
                 
     except Exception as e:
-        return f"⚠️ 지역 뉴스 크롤링 실패: {e}\n"
+        return f"⚠️ 부산 KBS 크롤링 실패: {e}\n"
+    finally:
+        driver.quit()
 
-    # 뉴스를 하나도 못 가져왔을 경우
-    if not selected:
+    if not collected_articles:
         return "현재 새롭게 들어온 부산 지역 주요 소식이 없습니다.\n"
 
-    # 2. 추출한 뉴스로 기존처럼 본문 추출 및 요약 진행
-    for idx, news in enumerate(selected):
+    for idx, news in enumerate(collected_articles):
         title, url = news["title"], news["url"]
-        
-        # url이 정상적인 KBS 링크이므로 기존 함수 그대로 사용 가능
         body = extract_article_body(url)
         
         if not body:
@@ -59,7 +113,7 @@ def block_additional_news(current_news, prev_type=None, context=None, language="
 
         local_context = (
             context or 
-            "부산 시민들에게 필요한 생활 밀착형 정보, 교통, 날씨, 지역 이슈 위주로 자연스럽고 친근한 뉴스 톤으로 요약해 줘."
+            "부산 시민들에게 필요한 생활 밀착형 정보, 교통, 날씨, 지역 이슈 위주로 핵심만 자연스럽고 친근한 뉴스 톤으로 요약해 줘."
         )
 
         result = summarize_article(
@@ -76,4 +130,8 @@ def block_additional_news(current_news, prev_type=None, context=None, language="
         else:
             output_lines.append(f"⚠️ 요약 실패: {result['error']}\n")
 
-    return "\n".join(output_lines)
+    final_output = "\n".join(output_lines)
+    if not final_output.strip():
+        return "현재 새롭게 들어온 부산 지역 주요 소식이 없습니다.\n"
+        
+    return final_output

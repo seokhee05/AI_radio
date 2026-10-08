@@ -37,9 +37,9 @@ export default function ContentSelector({ onChange }) {
         onClick={handleChange}
       />
       <ContentsBlock
-        name="current"
-        label="🗞️ 추가 뉴스"
-        active={selectedBlocks.some((b) => b.name === "current")}
+        name="busan"
+        label="🗞️ 부산 뉴스"
+        active={selectedBlocks.some((b) => b.name === "busan")}
         onClick={handleChange}
       />
 
