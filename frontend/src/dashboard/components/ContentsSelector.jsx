@@ -53,9 +53,9 @@ export default function ContentSelector({ onChange }) {
 
       {/* 음악 */}
       <ContentsBlock
-        name="music_history"
-        label="📀 음악 역사"
-        active={selectedBlocks.some((b) => b.name === "music_history")}
+        name="music_story"
+        label="🎧 장르&음악 이야기"
+        active={selectedBlocks.some((b) => b.name === "music_story")}
         onClick={handleChange}
       />
       <ContentsBlock
@@ -64,15 +64,10 @@ export default function ContentSelector({ onChange }) {
         active={selectedBlocks.some((b) => b.name === "music_trend")}
         onClick={handleChange}
       />
-      <ContentsBlock
-        name="music_genre"
-        label="🎧 장르 탐험"
-        active={selectedBlocks.some((b) => b.name === "music_genre")}
-        onClick={handleChange}
-      />
+      
       <ContentsBlock
         name="music_artist"
-        label="🌟 아티스트 집중 조명"
+        label="🌟 오늘의 아티스트"
         active={selectedBlocks.some((b) => b.name === "music_artist")}
         onClick={handleChange}
       />
