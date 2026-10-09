@@ -1,6 +1,5 @@
-from music.blocks.block_music_history import block_music_history
 from music.blocks.block_music_trend import block_music_trend
-from music.blocks.block_music_genre import block_music_genre
+from music.blocks.block_music_story import block_music_story
 from music.blocks.block_music_artist import block_music_artist
 
 def run_music_radio(blocks: list[str], keyword: str = None, language="ko", prev_type=None, context=None) -> str:
@@ -8,12 +7,10 @@ def run_music_radio(blocks: list[str], keyword: str = None, language="ko", prev_
     prev_type, context = None, ""
 
     for b in blocks:
-        if b == "music_history":
-            text = block_music_history(keyword, prev_type, context, language)
-        elif b == "music_trend":
+        if b == "music_trend":
             text = block_music_trend(keyword, prev_type, context, language)
-        elif b == "music_genre":
-            text = block_music_genre(keyword, prev_type, context, language)
+        elif b == "music_story":
+            text = block_music_story(keyword, prev_type, context, language)
         elif b == "music_artist":
             text = block_music_artist(keyword, prev_type, context, language)
 
