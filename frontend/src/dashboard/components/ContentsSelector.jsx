@@ -22,63 +22,90 @@ export default function ContentSelector({ onChange }) {
   };
 
   return (
-    <div className="mt-2 flex flex-wrap gap-2">
-      {/* 뉴스 */}
-      <ContentsBlock
-        name="headline"
-        label="📰 헤드라인 뉴스"
-        active={selectedBlocks.some((b) => b.name === "headline")}
-        onClick={handleChange}
-      />
-      <ContentsBlock
-        name="deep"
-        label="🔎 심층 뉴스"
-        active={selectedBlocks.some((b) => b.name === "deep")}
-        onClick={handleChange}
-      />
-      <ContentsBlock
-        name="busan"
-        label="🗞️ 부산 뉴스"
-        active={selectedBlocks.some((b) => b.name === "busan")}
-        onClick={handleChange}
-      />
+    <div className="space-y-6">
+      {/* 📰 뉴스 카테고리 */}
+      <div className="space-y-2">
+        <h1 className="text-s text-left font-bold text-slate-400 uppercase tracking-wider">
+          [📑 뉴스 카테고리]
+        </h1>
+        <div className="flex flex-wrap gap-2">
+          <ContentsBlock
+            name="headline"
+            label="📰 헤드라인 뉴스"
+            active={selectedBlocks.some((b) => b.name === "headline")}
+            onClick={handleChange}
+          />
+          <ContentsBlock
+            name="deep"
+            label="🔎 심층 뉴스"
+            active={selectedBlocks.some((b) => b.name === "deep")}
+            onClick={handleChange}
+          />
+          <ContentsBlock
+            name="busan"
+            label="🗞️ 부산 뉴스"
+            active={selectedBlocks.some((b) => b.name === "busan")}
+            onClick={handleChange}
+          />
+        </div>
+      </div>
 
-      {/* 사연 (공감과 토론을 하나의 세트로 통합) */}
-      <ContentsBlock
-        name="story_main"
-        label="🎙️ 사연 토크"
-        active={selectedBlocks.some((b) => b.name === "story_main")}
-        onClick={handleChange}
-      />
+      {/* 💌 사연 카테고리 */}
+      <div className="space-y-2">
+        <h1 className="text-s text-left font-bold text-slate-400 uppercase tracking-wider">
+          [💌 사연 카테고리]
+        </h1>
+        <div className="flex flex-wrap gap-2">
+          <ContentsBlock
+            name="story_main"
+            label="🎙️ 사연 토크"
+            active={selectedBlocks.some((b) => b.name === "story_main")}
+            onClick={handleChange}
+          />
+        </div>
+      </div>
 
-      {/* 음악 */}
-      <ContentsBlock
-        name="music_story"
-        label="🎧 장르&음악 이야기"
-        active={selectedBlocks.some((b) => b.name === "music_story")}
-        onClick={handleChange}
-      />
-      <ContentsBlock
-        name="music_trend"
-        label="📊 최신 음악 트렌드"
-        active={selectedBlocks.some((b) => b.name === "music_trend")}
-        onClick={handleChange}
-      />
-      
-      <ContentsBlock
-        name="music_artist"
-        label="🌟 오늘의 아티스트"
-        active={selectedBlocks.some((b) => b.name === "music_artist")}
-        onClick={handleChange}
-      />
+      {/* 🎵 음악 카테고리 */}
+      <div className="space-y-2">
+        <h1 className="text-s text-left font-bold text-slate-400 uppercase tracking-wider">
+          [🎵 음악 카테고리]
+        </h1>
+        <div className="flex flex-wrap gap-2">
+          <ContentsBlock
+            name="music_story"
+            label="🎧 장르&음악 이야기"
+            active={selectedBlocks.some((b) => b.name === "music_story")}
+            onClick={handleChange}
+          />
+          <ContentsBlock
+            name="music_trend"
+            label="📊 최신 음악 트렌드"
+            active={selectedBlocks.some((b) => b.name === "music_trend")}
+            onClick={handleChange}
+          />
+          <ContentsBlock
+            name="music_artist"
+            label="🌟 오늘의 아티스트"
+            active={selectedBlocks.some((b) => b.name === "music_artist")}
+            onClick={handleChange}
+          />
+        </div>
+      </div>
 
-      {/* 교통 */}
-      <ContentsBlock 
-        name="traffic" 
-        label="🚗 교통 정보" 
-        active={selectedBlocks.some((b) => b.name === "traffic")} 
-        onClick={handleChange} 
-      /> 
+      {/* 🚗 교통 카테고리 */}
+      <div className="space-y-2">
+        <h1 className="text-s text-left font-bold text-slate-400 uppercase tracking-wider">
+          [ 🚦교통 카테고리]
+        </h1>
+        <div className="flex flex-wrap gap-2">
+          <ContentsBlock
+            name="traffic"
+            label="🚗교통 정보"
+            active={selectedBlocks.some((b) => b.name === "traffic")}
+            onClick={handleChange}
+          />
+        </div>
+      </div>
     </div>
   );
 }

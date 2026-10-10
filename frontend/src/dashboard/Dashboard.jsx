@@ -74,14 +74,32 @@ export default function Dashboard() {
   // ✨ 헤드라인(headline)이나 추가 뉴스(busan) 선택 시 키워드 입력 제한
   const isHeadline = selectedBlocks.includes("headline");
   const isBusan = selectedBlocks.includes("busan");
-  const isKeywordDisabled = isHeadline || isBusan;
+  const isTraffic = selectedBlocks.includes("traffic");
+  const isKeywordDisabled = isHeadline || isBusan || isTraffic;
+  const isStory = selectedBlocks.includes("story_main");
+  const isDeep = selectedBlocks.includes("deep");
+  const isMusicStory = selectedBlocks.includes("music_story");
+  const isMusicTrend = selectedBlocks.includes("music_trend");
+  const isMusicArtist = selectedBlocks.includes("music_artist");
 
   // ✨ 선택된 콘텐츠에 따른 맞춤형 placeholder 결정
-  let keywordPlaceholder = "예: 인공지능, 가족여행, 출근";
+  let keywordPlaceholder = "먼저 아래에서 콘텐츠 종류를 선택해 주세요.";
   if (isHeadline) {
     keywordPlaceholder = "헤드라인 뉴스는 키워드를 입력할 수 없습니다.";
   } else if (isBusan) {
     keywordPlaceholder = "부산 뉴스는 키워드를 입력할 수 없습니다.";
+  } else if (isTraffic) {
+    keywordPlaceholder = "교통 정보는 부산 지역으로 고정되어 생성됩니다";
+  } else if (isStory) {
+    keywordPlaceholder = "ex. 아르바이트, 가족, 병원";
+  } else if (isDeep) {
+    keywordPlaceholder = "ex. 인공지능, 경제";
+  } else if (isMusicStory) {
+    keywordPlaceholder = "ex. 힙합, R&B, 발라드";
+  } else if (isMusicTrend) {
+    keywordPlaceholder = "ex. K-POP, 밴드";
+  } else if (isMusicArtist) {
+    keywordPlaceholder = "ex. 아이유, 방탄소년단";
   }
 
   // ✨ 객체가 중첩되어 들어와도 안전하게 문자열(텍스트)로 추출하는 헬퍼 함수
