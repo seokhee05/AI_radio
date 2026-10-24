@@ -79,6 +79,13 @@ BLOCK_HANDLERS = {
         prev_type=prev_type,
         context=context,
     ),
+    "music_story": lambda keyword, language, prev_type, context: run_music_radio(
+        ["music_story"],
+        keyword=keyword,
+        language=language,
+        prev_type=prev_type,
+        context=context,
+    ),
     "music_artist": lambda keyword, language, prev_type, context: run_music_radio(
         ["music_artist"],
         keyword=keyword,
@@ -112,8 +119,13 @@ def run_radio(selected: dict = Body(...)):
 
     # 선택된 블록 순서대로 실행
     for block in blocks:
-        if block in BLOCK_HANDLERS:
-            content = BLOCK_HANDLERS[block](keyword, language, prev_type, context)
+        if block not in BLOCK_HANDLERS:
+            raise ValueError(f"지원하지 않는 블록: {block}")
+
+        content = BLOCK_HANDLERS[block](
+            keyword, language, prev_type, context
+        )
+
         scripts.append({"type": block, "content": content})
         prev_type, context = block, content[-400:]
 

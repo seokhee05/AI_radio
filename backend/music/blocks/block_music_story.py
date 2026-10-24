@@ -5,281 +5,118 @@ from openai import OpenAI
 from common.prompt_utils import build_block_prompt
 
 load_dotenv()
-
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+GENRES_KO = ["재즈", "록", "EDM", "발라드", "힙합", "인디", "R&B", "소울", "펑크", "디스코"]
+GENRES_EN = ["Jazz", "Rock", "EDM", "Ballad", "Hip-hop", "Indie", "R&B", "Soul", "Funk", "Disco"]
 
-def block_music_story(
-    keyword=None,
-    prev_type=None,
-    context=None,
-    language="ko"
-):
-    genres_ko = [
-        "재즈",
-        "록",
-        "EDM",
-        "발라드",
-        "힙합",
-        "인디",
-        "R&B",
-        "소울",
-        "펑크",
-        "디스코"
-    ]
 
-    genres_en = [
-        "Jazz",
-        "Rock",
-        "EDM",
-        "Ballad",
-        "Hip-hop",
-        "Indie",
-        "R&B",
-        "Soul",
-        "Funk",
-        "Disco"
-    ]
+def _generate(messages, temperature=0.5):
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages,
+        temperature=temperature,
+        max_tokens=4200,
+    )
+    content = response.choices[0].message.content
+    if not content or not content.strip():
+        raise RuntimeError("MUSIC_STORY 대본이 비어 있습니다.")
+    return content.strip()
+
+
+def block_music_story(keyword=None, prev_type=None, context=None, language="ko"):
+    # 키워드가 비어 있으면 무작위 장르를 사용합니다.
+    genre_list = GENRES_KO if language == "ko" else GENRES_EN
+    selected_genre = keyword.strip() if isinstance(keyword, str) and keyword.strip() else random.choice(genre_list)
 
     if language == "ko":
-        selected_genre = (
-            keyword.strip()
-            if keyword and keyword.strip()
-            else random.choice(genres_ko)
-        )
-
         base_instruction = f"""
-당신은 음악 전문 지식을 갖춘 감성적인 라디오 DJ입니다.
+당신은 음악사에 밝고 이야기를 재미있게 전달하는 한국어 라디오 DJ입니다.
+오늘의 MUSIC_STORY 주제는 '{selected_genre}'입니다.
+이 코너는 특정 아티스트의 일대기가 아닌, 장르의 탄생과 진화를 소개합니다.
 
-이전 코너는 {prev_type}이었고, 이런 분위기였습니다:
-{context}
+[반드시 지킬 구성]
+- 첫 문단: 장르의 소리와 매력을 쉽게 풀어 청취자를 끌어들입니다.
+- 태동: 탄생한 시대·지역·사회문화적 맥락과 선행 음악의 영향을 설명합니다.
+- 초기: 당시 음악 제작법·연주법·현장 문화 등을 구체적으로 설명합니다.
+- 변화: 시대순으로 중요한 변곡점 2~3개를 자연스러운 인과관계로 연결합니다.
+- 대표곡: 실제로 존재하고 해당 시기의 장르적 특징을 보여 주는 곡 2~3곡을 이야기 흐름에 녹여 소개합니다.
+  각 곡의 아티스트, 제목, 당시의 음악적 특징과 역사적 의미를 정확히 설명하세요.
+- 오늘날: 현재의 하위 장르, 다른 장르와의 결합, 음악 산업과 문화에 남긴 영향을 이야기합니다.
+- 마지막 문단: 처음의 이미지와 연결되는 따뜻하고 자연스러운 마무리로 끝냅니다.
 
-이제 [MUSIC_STORY] 코너를 진행해주세요.
+[사실성]
+- 뚜렷한 근거가 없는 정확한 날짜, 최초 기록, 역사적 사건, 곡·가수 이름은 만들지 마세요.
+- 특정 행사를 '장르가 탄생한 단 하루'라고 단정하지 마세요. 널리 언급되는 상징적 사건이면 그 맥락을 구분해 설명하세요.
+- 음악사적 순서가 꼬이지 않도록 하세요. 예를 들어 2010년대에 부상한 흐름을 2000년대의 대표 현상으로 쓰지 마세요.
+- 리듬·보컬·악기·샘플링·제작 방식은 해당 장르의 실제 특징만 골라 설명하세요.
+- 대표곡의 발매 연도가 확실치 않으면 연도를 빼고 시대를 설명하세요.
+- 실시간 인기 순위나 현재 유행을 확인한 것처럼 꾸미지 마세요.
 
-오늘 이야기할 음악 장르는 "{selected_genre}"입니다.
+[문체와 길이]
+- 공백 포함 약 2,700~3,200자, 7~9개의 비교적 충실한 문단을 목표로 합니다.
+- 라디오 DJ의 편안한 구어체를 사용하고, 문단 사이가 자연스럽게 이어지도록 합니다.
+- 문단마다 새로운 정보가 있어야 하며 앞부분을 다시 말하는 방식으로 분량을 채우지 마세요.
+- 너무 일반적인 수식어(새로운 가능성, 많은 사랑, 다양한 매력)를 반복하지 마세요.
+- 소제목, 숫자 목록, 괄호 속 무대지시, JSON, 인사말·클로징 코너는 출력하지 마세요.
+- 실제 음악 재생 기능이 없으므로 '들어보시죠', '듣고 오셨나요'처럼 곡 재생을 암시하지 마세요.
+- 이전 코너가 있으면 문장 한두 개로만 자연스럽게 분위기를 잇고, 메인 주제는 끝까지 '{selected_genre}'로 유지하세요.
 
-이 코너는 "{selected_genre}" 장르의 탄생부터 현재까지의 변화를
-시간의 흐름에 따라 들려주는 음악 이야기 코너입니다.
+이전 코너: {prev_type or '없음'}
+이전 분위기: {str(context or '없음')[:900]}
 
-단순히 장르의 특징만 설명하는 것이 아니라,
-
-탄생 배경
-→ 초기의 모습
-→ 시대에 따른 변화
-→ 다른 음악과의 결합 및 확장
-→ 오늘날의 모습
-
-순서가 자연스럽게 느껴지도록 하나의 이야기처럼 구성해주세요.
-
-청취자가 방송을 들으면서
-
-"이 장르가 처음에는 이런 음악이었는데,
-시간이 지나면서 이런 모습으로 변화했구나"
-
-라고 이해할 수 있도록 작성해주세요.
-
-스크립트 흐름:
-
-먼저 "{selected_genre}"가 어떤 음악인지
-청취자가 쉽게 이해할 수 있도록 자연스럽게 소개해주세요.
-
-이후 "{selected_genre}"가 어떤 시대적·문화적·음악적 배경에서
-등장했는지 설명해주세요.
-
-장르가 처음 등장했을 당시에는 어떤 모습이었는지,
-어떤 문화적 환경에서 발전했는지도 자연스럽게 이야기해주세요.
-
-그다음 "{selected_genre}"의 변화를
-시간의 흐름에 따라 설명해주세요.
-
-최소한 다음과 같은 흐름이 느껴져야 합니다.
-
-- 장르가 처음 등장했을 당시의 모습
-- 대중화되거나 크게 변화하기 시작한 시기
-- 음악 기술이나 다른 장르와 결합하면서 변화한 모습
-- 오늘날 "{selected_genre}"가 어떤 형태로 이어지고 있는지
-
-연도와 사건을 단순 나열하지 말고,
-
-"처음에는 이러했지만 이후 이런 변화가 나타났고,
-오늘날에는 이런 모습으로 이어지고 있다"
-
-는 식으로 하나의 음악 이야기처럼 자연스럽게 연결해주세요.
-
-이어서 "{selected_genre}"만의 음악적인 특징을 설명해주세요.
-
-리듬, 악기 구성, 보컬 스타일, 연주 방식,
-사운드, 곡의 분위기, 즉흥성, 프로덕션 특징 등
-해당 장르에 실제로 중요한 요소를 골라 설명해주세요.
-
-특정 아티스트 한 명의 활동이나 음악 세계를
-길게 설명하지 마세요.
-
-아티스트는 장르의 역사적 변화나 음악적 특징을 설명하기 위해
-필요한 경우에만 대표 사례로 짧게 언급해주세요.
-
-대표곡은 2~3곡 정도 소개해주세요.
-
-각 곡에 대해서는
-
-- 해당 시대의 "{selected_genre}"가 어떤 모습이었는지
-- 곡에서 드러나는 장르의 음악적 특징
-- 사운드, 리듬, 악기, 보컬 등의 특징
-- 해당 곡이 장르의 변화 과정에서 어떤 의미를 가지는지
-- 청취자가 주목해서 들을 만한 감상 포인트
-
-를 자연스럽게 설명해주세요.
-
-실제로 음악을 재생하는 것처럼 표현하지 마세요.
-
-"이 곡 들어보시죠."
-"듣고 오겠습니다."
-"잘 듣고 오셨나요?"
-
-등의 표현은 사용하지 마세요.
-
-마지막에는 "{selected_genre}"가 오늘날 어떤 모습으로 이어지고 있는지,
-현대 음악에 어떤 영향을 남겼는지,
-그리고 지금도 이 장르가 가진 매력이 무엇인지 이야기하며
-코너를 자연스럽게 마무리해주세요.
-
-중요:
-- 반드시 "{selected_genre}"를 메인 주제로 끝까지 유지하세요.
-- 특정 아티스트가 메인 주제가 되지 않도록 하세요.
-- 다른 장르는 "{selected_genre}"의 변화나 영향을 설명하기 위한
-  비교 대상으로만 필요한 만큼 언급하세요.
-- 확인되지 않은 음악사적 사건, 발매일, 인물, 곡명을 임의로 만들어내지 마세요.
-- 특정 날짜에 일어난 사건을 억지로 연결하지 마세요.
-- 역사적 사실이 확실하지 않은 경우 구체적인 날짜를 단정하지 마세요.
-
-분량:
-- MUSIC_STORY 본문만 공백 포함 약 3,000자 내외로 작성하세요.
-- 최소 2,500자 이상을 목표로 충분히 상세하게 작성하세요.
-- 같은 설명을 반복해서 분량을 채우지 마세요.
-- 탄생 배경, 시대적 변화, 음악적 특징,
-  대표곡, 현재 모습을 균형 있게 활용하세요.
-
-문체:
-- 실제 라디오 DJ가 음악 이야기를 들려주는 자연스러운 구어체
-- 음악 교과서나 백과사전처럼 딱딱하게 작성하지 마세요.
-- 전문적인 내용도 일반 청취자가 이해할 수 있도록 쉽게 설명하세요.
-- 소제목, 번호, 목록을 출력하지 마세요.
-- 하나의 자연스러운 라디오 방송 대본처럼 이어서 작성하세요.
-
-키워드: {keyword}
+대본 본문만 출력하세요.
 """
-
     else:
-        selected_genre = (
-            keyword.strip()
-            if keyword and keyword.strip()
-            else random.choice(genres_en)
-        )
-
         base_instruction = f"""
-You are a knowledgeable and warm radio DJ.
-
-Today's genre is "{selected_genre}".
-
-Tell the story of this genre from its origins to the present.
-
-Focus on:
-- its origins
-- its early form
-- how it changed over time
-- interaction with other genres and technology
-- defining musical characteristics
-- 2–3 representative songs
-- what the genre looks like today
-- its influence on modern music
-
-Artists may be mentioned briefly as examples,
-but do not turn the segment into a biography of one artist.
-
-Do not pretend to actually play music.
-
-Keep "{selected_genre}" as the central subject throughout the segment.
-
-Do not invent unverified historical events, dates, artists, or songs.
-
-Write one continuous radio script without headings or numbered sections.
-Aim for approximately 3,000 Korean-character equivalent length.
+You are a warm, historically informed radio DJ. MUSIC_STORY topic: {selected_genre}.
+Write an engaging chronological radio narrative about the genre, not a single artist's biography.
+Cover the sonic identity, social and musical origins, early practices, major changes over time,
+2–3 real representative songs embedded naturally with specific musical and historical context,
+and the genre's contemporary forms and enduring influence.
+Avoid made-up dates, claims of a single definitive founding moment, invented songs, unverified rankings,
+or vague repeated praise. If a specific release year is uncertain, omit it.
+Write 7–9 substantial, connected paragraphs, roughly 1,500–2,000 English words maximum.
+No headings, lists, JSON, opening/closing segments or pretend music playback.
+Previous segment: {prev_type or 'none'}. Previous context: {str(context or 'none')[:900]}.
+Output only the radio script.
 """
 
     prompt = build_block_prompt(
         base_instruction=base_instruction,
         block_name="MUSIC_STORY",
-        keyword=keyword,
+        keyword=selected_genre,
         prev_type=prev_type,
-        context=context
+        context=context,
     )
+    result = _generate([{"role": "user", "content": prompt}])
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.7,
-        max_tokens=4000,
-    )
-
-    result = response.choices[0].message.content.strip()
-
+    # 짧을 때만 한 번 더 보강합니다. 이미 충분하면 추가 API 호출을 하지 않습니다.
     if language == "ko" and len(result) < 2500:
         expand_prompt = f"""
-아래 MUSIC_STORY 라디오 대본이 현재 너무 짧습니다.
+다음 '{selected_genre}' MUSIC_STORY 대본을 공백 포함 2,700~3,200자 정도로 보완하세요.
+원문의 장르, 시대순 흐름, 이미 소개한 실제 대표곡은 유지하세요.
+부족한 시대적 연결과 그 장르만의 구체적인 사운드·문화적 특징을 추가하세요.
+새로운 곡명·날짜·사실을 확인 없이 추가하거나, 같은 내용을 반복하지 마세요.
+자연스러운 한국어 DJ 구어체의 본문만 출력하세요. 제목, 목록, 음악 재생 멘트는 금지합니다.
 
-기존 내용의 주제와 사실관계, 전체 흐름은 유지하면서
-공백 포함 약 3,000자 내외가 되도록 자연스럽게 확장해주세요.
-
-특히 다음 내용을 더 풍부하게 설명해주세요.
-
-- "{selected_genre}"의 탄생 배경
-- 초기의 음악적 모습
-- 시대에 따른 변화
-- 다른 장르 및 음악 기술과의 결합
-- "{selected_genre}"만의 음악적 특징
-- 시대별 대표곡 2~3곡과 각 곡의 특징
-- 오늘날의 모습
-- 현대 음악에 남긴 영향과 매력
-
-핵심 흐름은 반드시
-
-탄생
-→ 초기 모습
-→ 시대별 변화
-→ 확장
-→ 현재
-
-순서가 느껴지도록 유지해주세요.
-
-특정 아티스트 한 명의 활동이나 음악 세계를
-길게 설명하지 마세요.
-
-아티스트는 장르의 변화나 특징을 설명하기 위한
-대표 사례로만 짧게 언급해주세요.
-
-음악을 실제로 재생하는 것처럼 표현하지 마세요.
-
-같은 말을 반복해서 분량을 늘리지 마세요.
-확인되지 않은 새로운 사실을 임의로 만들어내지 마세요.
-
-번호나 소제목 없이
-하나의 자연스러운 라디오 DJ 대본으로 작성해주세요.
-
-기존 대본:
+원문:
 {result}
 """
-
-        retry = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "user", "content": expand_prompt}
-            ],
-            temperature=0.7,
-            max_tokens=4000,
-        )
-
-        result = retry.choices[0].message.content.strip()
+        result = _generate([{"role": "user", "content": expand_prompt}], temperature=0.4)
 
     return result
+
+# MUSIC_GENRE 블록에서도 MUSIC_STORY 대본 생성 기능 사용
+def block_music_genre(
+    keyword=None,
+    prev_type=None,
+    context=None,
+    language="ko"
+):
+    return block_music_story(
+        keyword=keyword,
+        prev_type=prev_type,
+        context=context,
+        language=language
+    )
