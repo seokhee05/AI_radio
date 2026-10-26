@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ContentsSelector from "./components/ContentsSelector";
+
+const BACKEND_URL = "http://localhost:8000";
 
 export default function Dashboard() {
   const [keyword, setKeyword] = useState("");
@@ -8,15 +10,17 @@ export default function Dashboard() {
   const [scripts, setScripts] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // ✨ 알림 모달을 관리하는 통합 State
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef(null);
+
   const [modal, setModal] = useState({
     isOpen: false,
-    type: "success", // "success" | "error"
+    type: "success", 
     title: "",
     message: ""
   });
 
-  // ✨ 모달이 열려 있을 때 Enter 키를 누르면 모달 닫기
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "Enter" && modal.isOpen) {
@@ -33,23 +37,34 @@ export default function Dashboard() {
   const handlePlayRadio = async () => {
     setLoading(true);
     setScripts([]);
+    setIsPlaying(false);
+    setCurrentIndex(0);
 
     try {
-      const res = await fetch("http://localhost:8000/api/run-radio", {
+      const res = await fetch(`${BACKEND_URL}/api/run-radio`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blocks: selectedBlocks, keyword }),
+        body: JSON.stringify({ blocks: selectedBlocks, keyword, language: "ko" }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        setScripts(data.scripts);
+        const fetchedScripts = data.scripts || [];
+        setScripts(fetchedScripts);
+
         setModal({
           isOpen: true,
           type: "success",
-          title: "스크립트 생성 완료",
-          message: "AI 라디오 스크립트가 성공적으로 생성되었습니다!"
+          title: "스크립트 및 음성 생성 완료",
+          message: "AI 라디오 방송 준비가 완료되었습니다. 우측의 '방송 시작' 버튼을 눌러 들어보세요!"
         });
+
+        if (fetchedScripts.length > 0 && fetchedScripts[0].audio_url) {
+          setCurrentIndex(0);
+          if (audioRef.current) {
+            audioRef.current.src = `${BACKEND_URL}${fetchedScripts[0].audio_url}`;
+          }
+        }
       } else {
         setModal({
           isOpen: true,
@@ -71,7 +86,22 @@ export default function Dashboard() {
     }
   };
 
-  // ✨ 헤드라인(headline)이나 추가 뉴스(busan) 선택 시 키워드 입력 제한
+  const handleAudioEnded = () => {
+    const nextIndex = currentIndex + 1;
+
+    if (nextIndex < scripts.length) {
+      setCurrentIndex(nextIndex);
+      const nextAudioUrl = scripts[nextIndex]?.audio_url;
+
+      if (nextAudioUrl && audioRef.current) {
+        audioRef.current.src = `${BACKEND_URL}${nextAudioUrl}`;
+        audioRef.current.play();
+      }
+    } else {
+      setIsPlaying(false);
+    }
+  };
+
   const isHeadline = selectedBlocks.includes("headline");
   const isBusan = selectedBlocks.includes("busan");
   const isTraffic = selectedBlocks.includes("traffic");
@@ -82,7 +112,6 @@ export default function Dashboard() {
   const isMusicTrend = selectedBlocks.includes("music_trend");
   const isMusicArtist = selectedBlocks.includes("music_artist");
 
-  // ✨ 선택된 콘텐츠에 따른 맞춤형 placeholder 결정
   let keywordPlaceholder = "먼저 아래에서 콘텐츠 종류를 선택해 주세요.";
   if (isHeadline) {
     keywordPlaceholder = "헤드라인 뉴스는 키워드를 입력할 수 없습니다.";
@@ -102,43 +131,88 @@ export default function Dashboard() {
     keywordPlaceholder = "ex. 아이유, 방탄소년단";
   }
 
-  // ✨ 객체가 중첩되어 들어와도 안전하게 문자열(텍스트)로 추출하는 헬퍼 함수
-  // ✨ 배열, 객체, 중첩 구조가 와도 텍스트만 쏙 빼내는 강력한 헬퍼 함수
   const renderScriptContent = (item) => {
     if (typeof item === "string") return item;
-    
-    // 만약 배열 형태라면 내부 아이템들을 각각 풀어서 합쳐줌
+
     if (Array.isArray(item)) {
       return item.map((sub) => renderScriptContent(sub)).join("\n\n");
     }
-    
-    // 객체 형태라면 content 속성을 우선적으로 찾고, 없으면 재귀 탐색
+
     if (typeof item === "object" && item !== null) {
-      if (item.content) {
-        return renderScriptContent(item.content);
-      }
-      // 내부에 text나 message 같은 다른 키가 있을 경우 대비
-      if (item.text) {
-        return renderScriptContent(item.text);
-      }
-      return Object.values(item)
-        .map((val) => renderScriptContent(val))
-        .join("\n\n");
+      if (item.content) return renderScriptContent(item.content);
+      if (item.text) return renderScriptContent(item.text);
+      return Object.values(item).map((val) => renderScriptContent(val)).join("\n\n");
     }
-    
+
     return String(item || "");
+  };
+
+  const handleDeleteScript = (targetIdx) => {
+    const updatedScripts = scripts.filter((_, i) => i !== targetIdx);
+
+    if (isPlaying && targetIdx === currentIndex) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      setIsPlaying(false);
+
+      if (updatedScripts.length > 0) {
+        const nextIdx = Math.min(targetIdx, updatedScripts.length - 1);
+        setCurrentIndex(nextIdx);
+        if (audioRef.current && updatedScripts[nextIdx]?.audio_url) {
+          audioRef.current.src = `${BACKEND_URL}${updatedScripts[nextIdx].audio_url}`;
+        }
+      } else {
+        setCurrentIndex(0);
+        if (audioRef.current) audioRef.current.removeAttribute("src");
+      }
+    } 
+    else if (targetIdx < currentIndex) {
+      const newIndex = Math.max(0, currentIndex - 1);
+      setCurrentIndex(newIndex);
+    }
+
+    setScripts(updatedScripts);
+  };
+
+  const togglePlayPause = () => {
+    if (!audioRef.current || scripts.length === 0) return;
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      const currentAudioUrl = scripts[currentIndex]?.audio_url;
+
+      if (!currentAudioUrl) {
+        console.warn("재생할 오디오 URL이 없습니다.");
+        return;
+      }
+
+      const fullUrl = `${BACKEND_URL}${currentAudioUrl}`;
+
+      if (audioRef.current.src !== fullUrl) {
+        audioRef.current.src = fullUrl;
+      }
+
+      audioRef.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch((err) => {
+        console.error("오디오 재생 오류:", err);
+        setIsPlaying(false);
+      });
+    }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 relative">
+      <audio ref={audioRef} onEnded={handleAudioEnded} className="hidden" />
+
       <div
-        className={`mx-auto flex flex-col xl:flex-row gap-8 items-start transition-all duration-500 ease-in-out ${
-          scripts.length > 0 ? "w-full max-w-[1700px]" : "max-w-2xl"
-        }`}
+        className={`mx-auto flex flex-col xl:flex-row gap-8 items-start transition-all duration-500 ease-in-out ${scripts.length > 0 ? "w-full max-w-[1700px]" : "max-w-2xl"
+          }`}
       >
-        <main
-          className="w-full max-w-2xl shrink-0 rounded-2xl bg-white p-8 shadow-xl border border-slate-100 transition-all xl:sticky xl:top-12"
-        >
+        <main className="w-full max-w-2xl shrink-0 rounded-2xl bg-white p-8 shadow-xl border border-slate-100 transition-all xl:sticky xl:top-12">
           <header className="mb-8 border-b border-slate-100 pb-6">
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
               🎙️ AI 라디오 설정
@@ -164,11 +238,10 @@ export default function Dashboard() {
                 onChange={(e) => setKeyword(e.target.value)}
                 disabled={isKeywordDisabled}
                 placeholder={keywordPlaceholder}
-                className={`w-full rounded-xl border p-3.5 transition-all duration-200 ${
-                  isKeywordDisabled
+                className={`w-full rounded-xl border p-3.5 transition-all duration-200 ${isKeywordDisabled
                     ? "cursor-not-allowed border-slate-200 bg-slate-200 text-slate-400 placeholder:text-slate-400"
                     : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
-                }`}
+                  }`}
               />
             </section>
 
@@ -222,13 +295,12 @@ export default function Dashboard() {
             <button
               onClick={handlePlayRadio}
               disabled={loading || selectedBlocks.length === 0}
-              className={`w-full rounded-xl py-4 text-lg font-bold text-white transition-all duration-200 ${
-                loading || selectedBlocks.length === 0
+              className={`w-full rounded-xl py-4 text-lg font-bold text-white transition-all duration-200 ${loading || selectedBlocks.length === 0
                   ? "cursor-not-allowed bg-slate-300"
                   : "bg-blue-600 shadow-md hover:bg-blue-700 hover:shadow-lg active:scale-[0.98]"
-              }`}
+                }`}
             >
-              {loading ? "스크립트를 생성하는 중..." : "스크립트 생성하기"}
+              {loading ? "스크립트 및 음성 생성 중..." : "스크립트 생성하기"}
             </button>
           </div>
 
@@ -236,7 +308,7 @@ export default function Dashboard() {
             <div className="mt-6 flex flex-col items-center justify-center space-y-3 rounded-xl bg-blue-50 p-6">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
               <span className="font-medium text-blue-700">
-                AI가 스크립트를 생성하고 있습니다...
+                AI가 대본 및 음성을 생성하고 있습니다...
               </span>
             </div>
           )}
@@ -244,36 +316,79 @@ export default function Dashboard() {
 
         {scripts.length > 0 && (
           <aside className="w-full flex-1 rounded-2xl bg-white p-8 xl:p-10 shadow-xl border border-slate-100 animate-[fadeIn_0.5s_ease-in-out]">
-            <h2 className="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-2 border-b border-slate-100 pb-4">
-              📝 생성된 스크립트
-            </h2>
-            <div className="space-y-6">
-              {scripts.map((s, idx) => (
-                <section
-                  key={idx}
-                  className="relative rounded-2xl border border-slate-100 bg-slate-50 p-6 shadow-sm transition-all hover:shadow-md hover:border-slate-200"
-                >
-                  {(s.type?.toLowerCase() === "opening" || s.type?.toLowerCase() === "closing") && (
-                    <button
-                      onClick={() =>
-                        setScripts((prev) => prev.filter((_, i) => i !== idx))
-                      }
-                      className="absolute top-5 right-5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-500 transition hover:bg-red-100 hover:border-red-400"
-                    >
-                      삭제
-                    </button>
-                  )}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-8">
+              <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                📝 생성된 스크립트
+              </h2>
 
-                  <div className="mb-4 flex items-center gap-2">
-                    <span className="rounded-lg bg-blue-100 px-3 py-1.5 text-xs font-bold tracking-wider text-blue-700 uppercase">
-                      {typeof s.type === "object" && s.type !== null ? (s.type.name || JSON.stringify(s.type)) : String(s.type || "SCRIPT")}
-                    </span>
-                  </div>
-                  <p className="whitespace-pre-wrap text-left text-[15.5px] leading-relaxed text-slate-700 tracking-wide break-keep">
-                    {renderScriptContent(s)}
-                  </p>
-                </section>
-              ))}
+              <button
+                onClick={togglePlayPause}
+                className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition-all active:scale-[0.98] ${isPlaying
+                    ? "bg-amber-500 hover:bg-amber-600 shadow-md"
+                    : "bg-emerald-600 hover:bg-emerald-700 shadow-md"
+                  }`}
+              >
+                {isPlaying ? (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                      <path fillRule="evenodd" d="M6.75 5.25a.75.75 0 01.75.75v12a.75.75 0 01-1.5 0v-12a.75.75 0 01.75-.75zm9 0a.75.75 0 01.75.75v12a.75.75 0 01-1.5 0v-12a.75.75 0 01.75-.75z" clipRule="evenodd" />
+                    </svg>
+                    방송 일시정지
+                  </>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                      <path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" />
+                    </svg>
+                    방송 시작 / 이어서 듣기
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {scripts.map((s, idx) => {
+                const isCurrentPlaying = isPlaying && idx === currentIndex;
+
+                return (
+                  <section
+                    key={idx}
+                    className={`relative rounded-2xl border p-6 transition-all duration-300 ${isCurrentPlaying
+                        ? "border-blue-500 bg-blue-50/60 shadow-md ring-2 ring-blue-200"
+                        : "border-slate-100 bg-slate-50 hover:border-slate-200"
+                      }`}
+                  >
+                    {(s.type?.toLowerCase() === "opening" || s.type?.toLowerCase() === "closing") && (
+                      <button
+                        onClick={() => handleDeleteScript(idx)}
+                        className="absolute top-5 right-5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-500 transition hover:bg-red-100 hover:border-red-400"
+                      >
+                        삭제
+                      </button>
+                    )}
+
+                    <div className="mb-4 flex items-center gap-2">
+                      <span className={`rounded-lg px-3 py-1.5 text-xs font-bold tracking-wider uppercase ${isCurrentPlaying ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-700"
+                        }`}>
+                        {typeof s.type === "object" && s.type !== null
+                          ? s.type.name || JSON.stringify(s.type)
+                          : String(s.type || "SCRIPT")}
+                      </span>
+
+                      {isCurrentPlaying && (
+                        <span className="flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 animate-pulse">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+                          🔊 라이브 재생 중
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="whitespace-pre-wrap text-left text-[15.5px] leading-relaxed text-slate-700 tracking-wide break-keep">
+                      {renderScriptContent(s)}
+                    </p>
+                  </section>
+                );
+              })}
             </div>
           </aside>
         )}
@@ -305,11 +420,10 @@ export default function Dashboard() {
 
             <button
               onClick={() => setModal({ ...modal, isOpen: false })}
-              className={`w-full rounded-xl py-3.5 font-bold text-white transition-all active:scale-[0.98] ${
-                modal.type === "success"
+              className={`w-full rounded-xl py-3.5 font-bold text-white transition-all active:scale-[0.98] ${modal.type === "success"
                   ? "bg-emerald-600 hover:bg-emerald-700"
                   : "bg-rose-600 hover:bg-rose-700"
-              }`}
+                }`}
             >
               확인
             </button>

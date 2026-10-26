@@ -3,12 +3,16 @@ import json
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from story.blocks.block_story import block_story  # ✨ block_story 임포트
+from story.blocks.block_story import block_story
 from story.story_filter.story_filter import story_filter
 from story.story_filter.llm_story_filter import filter_stories_by_llm
 
+# 💡 TTS 파일 생성 및 URL 반환 함수 임포트
+from common.tts_utils import generate_tts_url
+
 load_dotenv()
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
 
 def paraphrase_story_with_llm(original_content: str, keyword: str) -> str:
     prompt = f"""
@@ -30,6 +34,7 @@ def paraphrase_story_with_llm(original_content: str, keyword: str) -> str:
         print(f"LLM 각색 중 오류 발생, 원본 사연으로 대체합니다: {e}")
         return original_content
 
+
 def generate_story_with_llm(keyword: str) -> str:
     prompt = f"""
     당신은 라디오 프로그램의 청취자입니다. 
@@ -48,18 +53,41 @@ def generate_story_with_llm(keyword: str) -> str:
         print(f"LLM 사연 실시간 생성 중 오류 발생: {e}")
         return f"오늘 '{keyword}'와 관련해서 소소한 일이 있었는데, 참 많은 생각을 하게 되네요."
 
-def run_story_radio(blocks: list[str], story_path="story/story.json", keyword=None, prev_type=None, context=None, language="ko") -> list[dict]:
+
+def run_story_radio(
+    blocks: list[str],
+    story_path="story/story.json",
+    keyword=None,
+    prev_type=None,
+    context=None,
+    language="ko"
+) -> str:
+    """
+    사연 블록 실행 함수
+    1. 사연 데이터 필터링 및 LLM 대본 합성
+    2. 생성된 사연 대본을 바탕으로 CLOVA Voice TTS(noyj) 음성 파일 생성
+    3. main.py 전달용 최종 대본 문자열 반환
+    """
     if not keyword:
         raise ValueError("사연 파트 실행을 위해 필수 키워드가 입력되지 않았습니다. keyword 인자를 전달해주세요.")
 
-    # 사연 필터링
-    story_filter()
-    filter_stories_by_llm()
+    # 1. 사연 필터링
+    try:
+        story_filter()
+        filter_stories_by_llm()
+    except Exception as e:
+        print(f"⚠️ 사연 필터링 단계 건너뜀/오류: {e}")
 
-    with open(story_path, "r", encoding="utf-8") as f:
-        all_stories = json.load(f)["stories"]
+    # 2. JSON 사연 데이터 로드
+    all_stories = []
+    if os.path.exists(story_path):
+        try:
+            with open(story_path, "r", encoding="utf-8") as f:
+                all_stories = json.load(f).get("stories", [])
+        except Exception as e:
+            print(f"⚠️ {story_path} 로드 실패: {e}")
 
-    matched_stories = [s for s in all_stories if keyword in s["content"]]
+    matched_stories = [s for s in all_stories if keyword in s.get("content", "")]
     processed_stories = []
 
     if matched_stories:
@@ -67,7 +95,7 @@ def run_story_radio(blocks: list[str], story_path="story/story.json", keyword=No
         for item in matched_stories[:3]:
             varied_content = paraphrase_story_with_llm(item["content"], keyword)
             processed_stories.append({
-                "id": item["id"],
+                "id": item.get("id", 1),
                 "content": varied_content
             })
     else:
@@ -79,9 +107,9 @@ def run_story_radio(blocks: list[str], story_path="story/story.json", keyword=No
                 "content": new_content
             })
 
-    # ✨ 핵심: 사연이 있든 없든 총 글자 수가 4000자보다 부족하면 4000자가 넘을 때까지 추가 생성!
+    # 3. 분량 조절 (TTS에 적합한 1,500자 기준)
     total_length = sum(len(s["content"]) for s in processed_stories)
-    target_length = 4000  # 기준 글자 수
+    target_length = 1500
 
     additional_id = len(processed_stories) + 1
     while total_length < target_length:
@@ -94,10 +122,21 @@ def run_story_radio(blocks: list[str], story_path="story/story.json", keyword=No
         total_length += len(new_content)
         additional_id += 1
 
-    # ✨ blocks에 사연 관련 블록이 포함되어 있다면 block_story 호출
-    script_results = []
+    # 4. 통합 사연 대본 생성
+    integrated_script = ""
     if "story_main" in blocks or "story_discussion" in blocks:
         integrated_script = block_story(processed_stories, keyword, prev_type, context, language)
-        script_results.append(integrated_script)
 
-    return script_results
+    # 문자열로 변환
+    if isinstance(integrated_script, dict):
+        final_text = integrated_script.get("content", str(integrated_script))
+    else:
+        final_text = str(integrated_script)
+
+    # 5. 💡 사연 전담 성우('noyj')로 TTS MP3 오디오 파일 생성 및 유효성 검증
+    if final_text.strip():
+        print("🎙️ [story_radio] 사연 전담 성우(noyj) TTS 오디오 생성 중...")
+        audio_url = generate_tts_url(text=final_text, speaker="noyj")
+        print(f"✅ [story_radio] 사연 TTS 생성 완료: {audio_url}")
+
+    return final_text
