@@ -15,92 +15,276 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # "가을, 드라이브" → 노라 존스 / 이소라 / 잔나비 등
 # "새벽, 위로" → 아이유 / 정승환 등
 # =========================================================
+
+
 def pick_artist_by_llm(keyword=None, language="ko"):
 
+    mood_keyword = (
+        keyword.strip()
+        if keyword and keyword.strip()
+        else ("편안한 음악" if language == "ko" else "relaxing music")
+    )
+
     if language == "ko":
-        mood_keyword = (
-            keyword.strip()
-            if keyword and keyword.strip()
-            else "편안한 음악"
-        )
-
         prompt = f"""
-당신은 음악 전문 AI입니다.
+당신은 국내외 음악의 가사, 주제, 아티스트,
+장르에 정통한 전문 음악 큐레이터입니다.
 
-사용자가 오늘 듣고 싶은 분위기, 감정 또는 상황은 다음과 같습니다.
+사용자가 입력한 키워드는 다음과 같습니다.
 
 "{mood_keyword}"
 
-이 분위기와 잘 어울리는
-실제로 존재하는 유명 아티스트 한 명을 선택해주세요.
+당신의 목표는 키워드와 가장 직접적으로
+관련된 실제 노래를 가진 아티스트 한 명을
+정확하게 선정하는 것입니다.
 
-예시:
+==================================================
+1. 가장 중요한 원칙
+==================================================
 
-"봄"
-→ 밝고 따뜻한 봄 분위기에 잘 어울리는 실제 아티스트
+아티스트의 유명세나 전체적인 음악 분위기가 아니라,
+실제 발표한 노래와 키워드의 관련성을 기준으로
+아티스트를 선택하세요.
 
-"가을, 드라이브"
-→ 가을의 감성과 드라이브 분위기에 잘 어울리는 실제 아티스트
+예를 들어 키워드가 "첫사랑"이라면,
 
-"위로, 새벽"
-→ 조용한 새벽과 위로가 필요한 분위기에 어울리는 실제 아티스트
+단순히 사랑 노래를 많이 부르거나
+감성적인 발라드를 부르는 가수를 선택하지 마세요.
 
-"설렘"
-→ 밝고 설레는 감정을 표현하는 음악과 잘 어울리는 실제 아티스트
+실제로 첫사랑의 설렘, 풋풋한 감정,
+처음 좋아했던 사람에 대한 기억 등을
+직접적으로 표현한 곡이 있는 아티스트를
+우선적으로 선택해야 합니다.
 
+"감성적인 가수이므로 첫사랑과 어울린다"는
+선정 근거로 인정하지 않습니다.
 
-반드시 지켜야 할 조건:
+==================================================
+2. 노래를 먼저 선택하세요
+==================================================
 
-- 반드시 실제 존재하는 아티스트만 선택하세요.
-- 존재하지 않는 아티스트를 만들어내지 마세요.
-- "{mood_keyword}" 자체를 아티스트 이름처럼 사용하지 마세요.
-- 한국 또는 해외 아티스트 모두 가능합니다.
-- 사용자의 분위기, 감정, 상황과 음악적으로 잘 어울리는 아티스트를 선택하세요.
-- 곡명이나 앨범명은 출력하지 마세요.
-- 선택 이유도 출력하지 마세요.
-- 반드시 아티스트 이름 하나만 출력하세요.
+아티스트를 먼저 떠올리지 마세요.
+
+반드시 아래 순서로 판단하세요.
+
+STEP 1.
+키워드 "{mood_keyword}"가 의미하는
+핵심 주제와 감정, 상황을 분석합니다.
+
+STEP 2.
+키워드와 직접 관련된 실제 발표곡을
+최소 5곡 이상 후보로 고려합니다.
+
+STEP 3.
+각 노래의 실제 주제와 가사 내용을 기준으로
+키워드와의 관련성을 비교합니다.
+
+STEP 4.
+가장 관련성이 높은 노래를 선정합니다.
+
+STEP 5.
+그 노래의 실제 아티스트를 선택합니다.
+
+단순히 제목에 키워드가 들어간다는 이유만으로
+관련성이 높다고 판단해서는 안 됩니다.
+
+실제 곡의 주제와 내용이 키워드와
+연결되는지를 우선적으로 판단하세요.
+
+==================================================
+3. 관련성 평가 기준
+==================================================
+
+후보 곡과 아티스트를 아래 기준으로 평가하세요.
+
+A. 주제 직접성: 40점
+- 곡이 키워드 자체를 중심 주제로 다루는가?
+- 키워드와 직접 연결되는 이야기가 있는가?
+
+B. 가사 및 메시지: 30점
+- 실제 가사와 메시지가 키워드와 일치하는가?
+- 키워드와 관련된 감정이나 상황이 구체적인가?
+
+C. 음악적 분위기: 20점
+- 곡의 멜로디와 분위기가 키워드에 어울리는가?
+- 청취자가 키워드의 감정을 느낄 수 있는가?
+
+D. 아티스트 적합성: 10점
+- 아티스트를 해당 키워드와 연결해
+  자연스럽고 구체적인 이야기를 할 수 있는가?
+
+주제와 가사 관련성을 가장 중요하게 평가하세요.
+
+유명세와 대중적 인지도는 점수에 포함하지 마세요.
+
+==================================================
+4. 반드시 피해야 할 선정 방식
+==================================================
+
+다음과 같은 방식으로 아티스트를 선택하지 마세요.
+
+- 첫사랑 → 단순히 감성적인 발라드 가수
+- 바람 → 단순히 목소리가 부드러운 가수
+- 여름 → 단순히 밝고 경쾌한 음악을 하는 가수
+- 이별 → 단순히 슬픈 노래를 많이 부르는 가수
+- 여행 → 단순히 편안한 분위기의 음악을 하는 가수
+
+반드시 관련된 실제 노래가 있어야 합니다.
+
+특정 키워드와 직접 관련된 곡이 있다면,
+분위기만 유사한 유명 아티스트보다
+그 곡을 발표한 아티스트를 우선하세요.
+
+==================================================
+5. 아티스트 다양성
+==================================================
+
+항상 대중적으로 유명한 아티스트만
+선택하는 편향을 피하세요.
+
+아이유, 이소라, 김동률, 이승철,
+노라 존스 등의 아티스트가
+자동적으로 우선 선택되지 않도록 주의하세요.
+
+이 아티스트들도 후보로 고려할 수 있지만,
+키워드와의 실제 음악적 관련성이
+다른 후보보다 높을 때만 선택하세요.
+
+국내외 인디, 포크, 발라드, 록, 팝,
+R&B, 힙합 등 다양한 장르를 고려하세요.
+
+신인, 인디, 중견 아티스트를 포함해
+폭넓은 후보를 비교하세요.
+
+단, 다양성을 위해 관련성이 떨어지는
+아티스트를 억지로 선택하지 마세요.
+
+==================================================
+6. 최종 자체 검토
+==================================================
+
+최종 아티스트를 결정하기 전에
+다음 질문을 스스로 확인하세요.
+
+1. 이 아티스트에게 키워드와 직접 관련된
+   실제 발표곡이 존재하는가?
+
+2. 그 노래가 키워드와 관련된 이유를
+   구체적으로 설명할 수 있는가?
+
+3. 단순히 음악 분위기가 비슷하다는 이유로
+   선택한 것은 아닌가?
+
+4. 더 직접적으로 관련된 실제 곡을 가진
+   다른 아티스트가 있지는 않은가?
+
+5. 곡과 아티스트의 관계를 확실하게 알고 있는가?
+
+확신이 낮은 후보는 제외하고
+더 신뢰할 수 있는 후보를 선택하세요.
+
+==================================================
+7. 사실 정확성
+==================================================
+
+- 실존 아티스트만 선정하세요.
+- 실제 발표된 곡만 기준으로 삼으세요.
+- 곡명과 아티스트를 혼동하지 마세요.
+- 다른 가수의 곡을 잘못 연결하지 마세요.
+- 존재하지 않는 음악을 만들어내지 마세요.
+- 음악적 관련성이 불분명한 후보는 제외하세요.
+
+==================================================
+8. 최종 출력
+==================================================
+
+내부적으로 여러 곡과 아티스트를 비교한 뒤
+키워드에 가장 적합한 아티스트 한 명을 선택하세요.
+
+최종 출력에는 아티스트 이름만 작성하세요.
+
+노래 제목, 점수, 선정 이유, 설명, 번호는
+절대 출력하지 마세요.
+
+반드시 아티스트 이름 하나만 반환하세요.
 """
 
     else:
-        mood_keyword = (
-            keyword.strip()
-            if keyword and keyword.strip()
-            else "relaxing music"
-        )
-
         prompt = f"""
-You are a music expert.
+You are an expert international music curator.
 
-The listener wants music for this mood, emotion, or situation:
+User keyword: "{mood_keyword}"
 
-"{mood_keyword}"
+Choose ONE real artist whose actual released music
+has the strongest thematic connection to the keyword.
 
-Choose one real and well-known artist
-whose music fits this mood or situation.
+IMPORTANT:
+Do not select an artist merely because their music
+has a similar emotional atmosphere.
 
-Rules:
+Selection process:
 
-- The artist must actually exist.
-- Never invent an artist.
-- Do not use the keyword itself as an artist name.
-- Choose only one artist.
-- Do not output songs or albums.
-- Do not explain your choice.
-- Return only the artist's name.
+1. Analyze the literal and emotional meaning
+   of the keyword.
+
+2. Consider at least five real released songs
+   related to the keyword.
+
+3. Compare candidates using these criteria:
+
+   - Direct thematic relevance: 40%
+   - Lyrical and message relevance: 30%
+   - Musical atmosphere: 20%
+   - Artist suitability: 10%
+
+4. Prioritize songs that directly address
+   the keyword's theme or situation.
+
+5. Identify the actual performer of the
+   strongest matching song.
+
+6. Consider artists across genres, generations
+   and popularity levels.
+
+7. Do not automatically prefer famous artists.
+
+8. Reject candidates based only on vague
+   similarity, sentiment, or vocal style.
+
+9. Never invent artists, songs, or relationships.
+
+10. If uncertain, prefer well-established
+    information over speculation.
+
+Return ONLY the artist's name.
+Do not include songs, scores, or explanations.
 """
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {
+                "role": "system",
+                "content": (
+                    "You are a strict keyword-based music curator. "
+                    "Choose artists based on actual songs with direct "
+                    "thematic relevance, not generic emotional similarity. "
+                    "Popularity does not determine suitability. "
+                    "Never fabricate music information."
+                )
+            },
+            {
                 "role": "user",
                 "content": prompt
             }
         ],
-        temperature=0.4,
+        temperature=0.3,
+        max_tokens=100,
     )
+    
 
     return response.choices[0].message.content.strip()
+
 
 
 # =========================================================
@@ -184,10 +368,6 @@ def block_music_artist(
 - 노래 가사를 길게 인용하거나
   그대로 재현하지 마세요.
 
-
-==================================================
-1. 아티스트 소개
-==================================================
 
 ==================================================
 1. 아티스트 소개
