@@ -94,24 +94,59 @@ def _itunes_has_track(artist, title):
 
 
 def _extract_song_from_script(content):
-    """음악 스토리/아티스트: 대본에 나온 곡 하나만 후보로 추출하고 카탈로그에서 확인."""
-    response = OpenAI(api_key=os.getenv("OPENAI_API_KEY")).chat.completions.create(
-        model="gpt-4o-mini", temperature=0,
+    """대본에 언급된 실제 노래 후보들을 검증하여 리스트로 반환."""
+    response = OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY")
+    ).chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0,
         response_format={"type": "json_object"},
         messages=[
-            {"role": "system", "content": (
-                "라디오 대본에 아티스트와 제목이 명확히 언급된 실제 노래 한 곡만 고르세요. "
-                "애매하면 null을 반환하세요. 오직 {\"artist\":string|null,\"song\":string|null} JSON만 출력하세요.")},
-            {"role": "user", "content": content},
-        ],
+            {
+                "role": "system",
+                "content": (
+                    "음악 라디오 대본에서 실제 언급된 아티스트와 곡을 "
+                    "최대 8개 추출하세요. "
+                    "아티스트 이름은 가능하면 음원 서비스에서 사용하는 "
+                    "공식 활동명으로 표기하세요. 예: 방탄소년단은 BTS. "
+                    "대본에 없는 곡은 절대 추가하지 마세요. "
+                    '반드시 {"songs":[{"artist":"...","song":"..."}]} '
+                    "형식의 JSON으로 답하세요."
+                )
+            },
+            {"role": "user", "content": content}
+        ]
     )
-    result = json.loads(response.choices[0].message.content or "{}")
-    artist, song = result.get("artist"), result.get("song")
-    if not isinstance(artist, str) or not isinstance(song, str):
-        return None
-    if not artist.strip() or not song.strip() or _norm(song) not in _norm(content):
-        return None
-    return _itunes_has_track(artist.strip(), song.strip())
+
+    data = json.loads(response.choices[0].message.content or "{}")
+    candidates = data.get("songs", [])
+
+    if not isinstance(candidates, list):
+        return []
+
+    verified_songs = []
+
+    for candidate in candidates[:8]:
+        if not isinstance(candidate, dict):
+            continue
+
+        artist = str(candidate.get("artist") or "").strip()
+        song = str(candidate.get("song") or "").strip()
+
+        if not artist or not song:
+            continue
+
+        if _norm(song) not in _norm(content):
+            continue
+
+        verified = _itunes_has_track(artist, song)
+
+        if verified and verified not in verified_songs:
+            verified_songs.append(verified)
+
+    print("[MUSIC SONG] candidates:", verified_songs, flush=True)
+
+    return verified_songs
 
 
 def _find_youtube_segment(song):
@@ -194,27 +229,47 @@ def run_radio(selected: dict = Body(...)):
             print(f"[ERROR] block {block}: {exc}", flush=True)
 
     # 음악 코너가 실제로 생성된 경우에만 본문 전체 뒤에 한 곡 삽입.
+    # 음악 본문이 생성된 경우 실제 곡 한 곡 삽입
     if music_scripts:
-        song = None
-        for candidate in verified_music_songs:
-            if candidate.get("artist") and candidate.get("song"):
-                song = {"artist": candidate["artist"], "song": candidate["song"]}
-                break
-        if song is None:
+        candidates = [
+            {"artist": item["artist"], "song": item["song"]}
+            for item in verified_music_songs
+            if item.get("artist") and item.get("song")
+        ]
+
+        if not candidates:
             try:
-                song = _extract_song_from_script("\n\n".join(music_scripts))
+                candidates = _extract_song_from_script(
+                    "\n\n".join(music_scripts)
+                )
             except Exception as exc:
                 print(f"[MUSIC SONG] extract failed: {exc}", flush=True)
-        if song:
+                candidates = []
+
+        for song in candidates:
             try:
                 video = _find_youtube_segment(song)
+
                 if video:
                     raw_scripts.append(video)
-                    print(f"[MUSIC SONG] inserted {song['artist']} - {song['song']}", flush=True)
-                else:
-                    print("[MUSIC SONG] no sufficiently matching video; skipped", flush=True)
+                    print(
+                        f"[MUSIC SONG] inserted: "
+                        f"{song['artist']} - {song['song']}",
+                        flush=True
+                    )
+                    break
+
+                print(
+                    f"[MUSIC SONG] video not found: "
+                    f"{song['artist']} - {song['song']}",
+                    flush=True
+                )
+
             except Exception as exc:
-                print(f"[MUSIC SONG] YouTube search failed: {exc}", flush=True)
+                print(
+                    f"[MUSIC SONG] YouTube error: {exc}",
+                    flush=True
+                )
 
     try:
         closing = generate_closing_ment(keyword, language=language)
