@@ -1,4 +1,5 @@
 import os
+import json
 from dotenv import load_dotenv
 from openai import OpenAI
 from common.prompt_utils import build_block_prompt
@@ -287,6 +288,226 @@ Do not include songs, scores, or explanations.
 
 
 
+def classify_music_keyword(keyword, language="ko"):
+    """
+    artist: 실제 아티스트 이름
+    theme: 계절, 감정, 상황, 일반 주제
+    """
+
+    keyword = (keyword or "").strip()
+
+    if not keyword:
+        return "theme"
+
+    # 자주 사용하는 아티스트는 바로 처리
+    known_artists = {
+        "아이유", "IU", "방탄소년단", "BTS",
+        "잔나비", "정준일", "태연", "뉴진스",
+        "BLACKPINK", "블랙핑크", "데이식스",
+    }
+
+    if keyword in known_artists:
+        return "artist"
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": """
+당신은 음악 라디오의 키워드 분류기입니다.
+
+사용자 입력을 정확히 두 가지로 분류하세요.
+
+artist:
+실제 가수, 밴드, 음악 그룹, 아티스트 이름
+
+theme:
+계절, 감정, 상황, 분위기, 음악 주제
+
+예시:
+아이유 -> artist
+방탄소년단 -> artist
+정준일 -> artist
+가을 -> theme
+여름 -> theme
+첫사랑 -> theme
+이별 -> theme
+드라이브 -> theme
+위로 -> theme
+가을밤 -> theme
+
+아티스트임이 확실하지 않으면 theme로 분류하세요.
+
+반드시 JSON으로만 출력하세요.
+{"type": "artist"} 또는 {"type": "theme"}
+"""
+            },
+            {
+                "role": "user",
+                "content": keyword
+            }
+        ],
+        temperature=0,
+        response_format={"type": "json_object"},
+        max_tokens=50,
+    )
+
+    try:
+        result = json.loads(
+            response.choices[0].message.content
+        )
+
+        return (
+            "artist"
+            if result.get("type") == "artist"
+            else "theme"
+        )
+
+    except (ValueError, TypeError):
+        return "theme"
+
+
+def generate_theme_music_script(
+    keyword,
+    prev_type=None,
+    context=None,
+    language="ko"
+):
+    if language == "ko":
+        instruction = f"""
+당신은 자연스럽고 매력적인 한국어 음악 라디오 DJ입니다.
+
+오늘의 음악 라디오 주제는 "{keyword}"입니다.
+
+이것은 특정 가수의 일대기를 소개하는 코너가 아닙니다.
+사용자의 키워드에 맞는 노래와 이야기를 들려주는 코너입니다.
+
+[핵심 규칙]
+
+1. "{keyword}"를 대본 전체의 중심 주제로 유지하세요.
+
+2. 키워드가 계절이라면 그 계절의 분위기,
+   날씨, 풍경, 추억, 어울리는 음악을 다룹니다.
+
+3. 키워드가 감정이라면 그 감정이 느껴지는
+   상황과 경험, 관련된 음악 이야기를 다룹니다.
+
+4. 키워드가 첫사랑이라면 첫사랑의 설렘,
+   기억, 그리움 등을 음악과 연결합니다.
+
+5. 키워드가 드라이브라면 이동하는 풍경,
+   시간대와 분위기에 어울리는 음악을 소개합니다.
+
+[노래 추천]
+
+- 키워드에 적합한 실제 노래 2~3곡을 소개하세요.
+- 각 곡의 정확한 아티스트와 제목을 사용하세요.
+- 단순히 분위기가 비슷하다는 설명을 반복하지 마세요.
+- 각 곡이 키워드와 연결되는 구체적인 이유를 설명하세요.
+- 존재 여부가 불확실한 곡은 소개하지 마세요.
+- 곡을 소개하더라도 한 아티스트의 일대기로
+  주제가 바뀌지 않도록 하세요.
+
+[대본 구성]
+
+첫 부분:
+오늘의 주제를 자연스럽고 흥미롭게 소개합니다.
+
+중간 부분:
+키워드와 관련된 감정, 상황, 경험을 이야기하고
+실제 음악 2~3곡을 자연스럽게 소개합니다.
+
+후반 부분:
+앞서 소개한 곡들을 통해 느낄 수 있는
+공통된 감정과 음악적 의미를 연결합니다.
+
+마지막 부분:
+오늘의 키워드를 중심으로 따뜻하게 마무리합니다.
+
+[문체]
+
+- 자연스럽고 편안한 라디오 DJ 말투
+- 공백 포함 약 2,700~3,200자
+- 7~9개 문단
+- 같은 표현 반복 금지
+- 번호와 소제목 출력 금지
+- 과장하거나 확인되지 않은 음악 정보 생성 금지
+- 실제 곡 재생을 암시하는 멘트 금지
+- 별도의 오프닝이나 클로징 코너를 만들지 마세요.
+
+이전 코너: {prev_type or "없음"}
+이전 분위기: {str(context or "없음")[:400]}
+
+대본 본문만 출력하세요.
+"""
+    else:
+        instruction = f"""
+You are a professional music radio DJ.
+
+The theme is "{keyword}".
+
+Write a natural radio narrative centered on this theme.
+Introduce 2-3 real, relevant songs and explain their
+connection to the theme.
+
+Do not change the main topic into an artist biography.
+Do not invent songs or facts.
+Do not pretend music has been played.
+
+Write 7-9 connected paragraphs.
+Output only the radio script.
+
+Previous segment: {prev_type or "none"}
+Previous context: {str(context or "none")[:400]}
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "user", "content": instruction}
+        ],
+        temperature=0.6,
+        max_tokens=4000,
+    )
+
+    result = response.choices[0].message.content.strip()
+
+    if language == "ko" and len(result) < 2500:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""
+다음 음악 라디오 대본을 공백 포함
+2,700~3,200자 분량으로 자연스럽게 보완하세요.
+
+중심 주제는 "{keyword}"입니다.
+
+원문의 실제 노래와 아티스트를 유지하고,
+주제에 대한 구체적인 이야기와 음악적 설명을
+추가하세요.
+
+불확실한 곡명이나 사실을 만들지 마세요.
+같은 표현을 반복하지 마세요.
+본문만 출력하세요.
+
+원문:
+{result}
+"""
+                }
+            ],
+            temperature=0.4,
+            max_tokens=4000,
+        )
+
+        result = response.choices[0].message.content.strip()
+
+    return result
+
+
+
 # =========================================================
 # MUSIC_ARTIST
 # =========================================================
@@ -297,12 +518,30 @@ def block_music_artist(
     language="ko"
 ):
 
-    # 사용자가 입력한 분위기 / 감정 / 상황을 기준으로
-    # 실제 아티스트 한 명 선택
-    selected_artist = pick_artist_by_llm(
-        keyword=keyword,
-        language=language
+    keyword = (keyword or "").strip()
+
+    # 1. 키워드 종류 구분
+    keyword_type = classify_music_keyword(
+        keyword,
+        language
     )
+
+    print(f"🎵 입력 키워드: {keyword}")
+    print(f"🎵 키워드 종류: {keyword_type}")
+
+    # 2. 계절·감정·상황 키워드
+    if keyword_type == "theme":
+        return generate_theme_music_script(
+            keyword=keyword,
+            prev_type=prev_type,
+            context=context,
+            language=language
+        )
+
+    # 3. 아티스트 이름이면 입력한 이름 그대로 사용
+    selected_artist = keyword
+
+    print(f"🎤 선택된 아티스트: {selected_artist}")
 
     # =====================================================
     # 한국어
