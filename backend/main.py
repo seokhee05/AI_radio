@@ -76,6 +76,15 @@ def _itunes_has_track(artist, title):
                           headers={"User-Agent": "AI-Radio/1.0"})
             with urlopen(req, timeout=8) as response:
                 tracks = json.load(response).get("results", [])
+            print(
+                f"[ITUNES DEBUG] {country} / {artist} - {title} / 결과={len(tracks)}",
+                flush=True
+            )
+
+            print(
+                f"[ITUNES DEBUG] 상위 결과={[(t.get('artistName'), t.get('trackName')) for t in tracks[:5]]}",
+                flush=True
+            )
         except Exception as exc:
             print(f"[MUSIC SONG] iTunes {country} error: {exc}", flush=True)
             continue
@@ -93,7 +102,7 @@ def _itunes_has_track(artist, title):
     return None
 
 
-def _extract_song_from_script(content):
+def _extract_song_from_script(content, allow_unverified=False):
     """대본에 언급된 실제 노래 후보들을 검증하여 리스트로 반환."""
     response = OpenAI(
         api_key=os.getenv("OPENAI_API_KEY")
@@ -140,9 +149,32 @@ def _extract_song_from_script(content):
             continue
 
         verified = _itunes_has_track(artist, song)
+        print(
+            f"[MUSIC SONG DEBUG] iTunes 검증: "
+            f"{artist} - {song} -> {verified}",
+            flush=True
+        )
 
-        if verified and verified not in verified_songs:
-            verified_songs.append(verified)
+        if verified:
+            if verified not in verified_songs:
+                verified_songs.append(verified)
+
+        elif allow_unverified:
+            # 트로트 전용 보조 검색 후보
+            # 장르명 등을 가수 이름으로 잘못 추출한 경우 제외
+            if _norm(artist) in {
+                "트로트", "trot", "음악", "music",
+                "노래", "가수", "아티스트"
+            }:
+                continue
+
+            candidate_song = {
+                "artist": artist,
+                "song": song
+            }
+
+            if candidate_song not in verified_songs:
+                verified_songs.append(candidate_song)
 
     print("[MUSIC SONG] candidates:", verified_songs, flush=True)
 
@@ -153,6 +185,23 @@ def _find_youtube_segment(song):
     """가수+곡명 검색. 동명이곡/커버 등 오선곡을 줄이기 위해 보수적으로 검사."""
     artist, title = song["artist"], song["song"]
     videos = search_youtube_music(artist, title)
+    print(
+        f"[MUSIC SONG DEBUG] YouTube 검색: {artist} - {title}",
+        flush=True
+    )
+
+    print(
+        f"[MUSIC SONG DEBUG] 검색 결과 수: {len(videos)}",
+        flush=True
+    )
+
+    for video in videos:
+        print(
+            f"[MUSIC SONG DEBUG] title={video.get('title')} "
+            f"channel={video.get('channel')} "
+            f"id={video.get('video_id')}",
+            flush=True
+        )
     safe = []
     for video in videos:
         name = str(video.get("title", ""))
@@ -271,6 +320,110 @@ def run_radio(selected: dict = Body(...)):
                     flush=True
                 )
 
+        # 트로트 + 장르&음악 이야기 / 최신 음악 트렌드에서만 실행
+        # 기존 경로에서 music_song 삽입에 실패했을 때만 추가 검색
+        is_trot_target = (
+            isinstance(keyword, str)
+            and keyword.strip().casefold() in ("트로트", "trot")
+            and any(
+                b in ("music_story", "music_genre", "music_trend")
+                for b in blocks
+            )
+        )
+
+        already_inserted = any(
+            item.get("type") == "music_song"
+            for item in raw_scripts
+        )
+
+        if is_trot_target and music_scripts and not already_inserted:
+            print("[TROT FALLBACK] 트로트 곡 추가 검색 시작", flush=True)
+
+            try:
+                trot_candidates = _extract_song_from_script(
+                    "\n\n".join(music_scripts),
+                    allow_unverified=True
+                )
+
+                for song in trot_candidates:
+                    try:
+                        video = _find_youtube_segment(song)
+
+                        if video:
+                            raw_scripts.append(video)
+                            print(
+                                f"[TROT FALLBACK] inserted: "
+                                f"{song['artist']} - {song['song']}",
+                                flush=True
+                            )
+                            break
+
+                    except Exception as exc:
+                        print(
+                            f"[TROT FALLBACK] YouTube error: {exc}",
+                            flush=True
+                        )
+
+            except Exception as exc:
+                print(
+                    f"[TROT FALLBACK] extraction error: {exc}",
+                    flush=True
+                )
+
+        # 오늘의 아티스트 전용: 기존 곡 삽입 실패 시 보조 검색
+        is_artist_target = "music_artist" in blocks
+
+        already_inserted = any(
+            item.get("type") == "music_song"
+            for item in raw_scripts
+        )
+
+        if is_artist_target and music_scripts and not already_inserted:
+            print("[ARTIST FALLBACK] 곡 추가 검색 시작", flush=True)
+
+            try:
+                import random
+
+                artist_candidates = _extract_song_from_script(
+                    "\n\n".join(music_scripts),
+                    allow_unverified=True
+                )
+
+                # 대본에 소개된 곡 중 무작위로 검색
+                random.shuffle(artist_candidates)
+
+                for song in artist_candidates:
+                    try:
+                        video = _find_youtube_segment(song)
+
+                        if video:
+                            raw_scripts.append(video)
+
+                            print(
+                                f"[ARTIST FALLBACK] inserted: "
+                                f"{song['artist']} - {song['song']}",
+                                flush=True
+                            )
+                            break
+
+                        print(
+                            f"[ARTIST FALLBACK] video not found: "
+                            f"{song['artist']} - {song['song']}",
+                            flush=True
+                        )
+
+                    except Exception as exc:
+                        print(
+                            f"[ARTIST FALLBACK] YouTube error: {exc}",
+                            flush=True
+                        )
+
+            except Exception as exc:
+                print(
+                    f"[ARTIST FALLBACK] extraction error: {exc}",
+                    flush=True
+                )
+        
     try:
         closing = generate_closing_ment(keyword, language=language)
         raw_scripts.append({"type": "closing", "content": closing, "speaker": main_speaker})
