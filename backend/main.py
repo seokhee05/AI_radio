@@ -11,6 +11,9 @@ from story.story_radio import run_story_radio
 from traffic.traffic_radio import run_traffic_radio
 from news.blocks.block_additional_news import block_additional_news
 
+from music.jamendo_api import get_bgm, search_bgm_track
+from youtube.youtube_api import search_youtube_music
+
 # 💡 TTS URL 유틸리티 임포트
 from common.tts_utils import generate_tts_url
 
@@ -125,11 +128,21 @@ def run_radio(selected: dict = Body(...)):
             content = BLOCK_HANDLERS[block](keyword, language, prev_type, context)
             print(f"5. [DEBUG] {block} 내용 생성 결과 (앞 50자): {str(content)[:50]}...")
             
+            
             speaker = BLOCK_SPEAKER_MAP.get(block, main_speaker)
-            raw_scripts.append({"type": block, "content": content, "speaker": speaker})
+
+            # 기존 음악 코너 대본 추가
+            raw_scripts.append({
+                "type": block,
+                "content": content,
+                "speaker": speaker
+            })
+
             prev_type, context = block, content[-400:] if content else ""
+
         except Exception as e:
-            print(f"❌ [ERROR] {block} 블록 실행 중 에러 터짐: {e}")
+            print(f"❌ [ERROR] {block} 블록 실행 중 에러: {e}")
+
 
     # 3. 클로징 멘트 생성 (메인 성우 적용)
     try:
@@ -146,9 +159,26 @@ def run_radio(selected: dict = Body(...)):
         script_content = item.get("content", "")
         script_speaker = item.get("speaker", main_speaker)
 
+        
+        # ==========================================
+        # 실제 음악은 TTS로 변환하지 않고 그대로 전달
+        # ==========================================
+        if script_type == "music_song":
+            final_scripts.append({
+                "type": "music_song",
+                "content": "",
+                "artist": item["artist"],
+                "song": item["song"],
+                "audio_url": item["audio_url"],
+                "provider": item["provider"],
+                "license_url": item.get("license_url"),
+            })
+            continue
+
         if not script_content:
             print(f"⚠️ [WARNING] {script_type} 의 content가 비어있어 TTS를 건너뜁니다.")
             continue
+
 
         print(f"7. [DEBUG] {script_type} TTS mp3 생성 시작 (성우: {script_speaker})")
         
@@ -160,6 +190,25 @@ def run_radio(selected: dict = Body(...)):
             "content": script_content,
             "audio_url": audio_url
         })
+        
 
     print(f"8. [DEBUG] 최종 전달될 scripts 개수: {len(final_scripts)}")
     return {"scripts": final_scripts}
+
+@app.get("/api/bgm")
+def get_radio_bgm(mood: str = "relaxation"):
+    bgm = get_bgm(mood)
+
+    return {"bgm": bgm}
+
+@app.get("/api/youtube/search")
+def get_youtube_music(artist: str, title: str):
+    videos = search_youtube_music(artist, title)
+
+    return {"videos": videos}
+
+@app.get("/api/bgm/find")
+def find_bgm(title: str, artist: str):
+    return {
+        "track": search_bgm_track(title, artist)
+    }
