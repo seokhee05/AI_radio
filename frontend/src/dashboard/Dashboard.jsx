@@ -13,6 +13,7 @@ export default function Dashboard() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef(null);
+  const bgmRef = useRef(null);
 
   const [modal, setModal] = useState({
     isOpen: false,
@@ -29,10 +30,74 @@ export default function Dashboard() {
     };
 
     window.addEventListener("keydown", handleKeyDown);
+
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [modal.isOpen]);
+
+  useEffect(() => {
+    const bgm = new Audio();
+    bgm.volume = 0.12;
+    bgm.loop = true;
+
+    bgmRef.current = bgm;
+
+    return () => {
+      bgm.pause();
+      bgm.removeAttribute("src");
+      bgmRef.current = null;
+    };
+  }, []);
+
+
+  const loadJamendoBGM = async () => {
+    try {
+      // 뉴스 및 교통 카테고리
+      const newsTrafficBlocks = [
+        "headline",
+        "deep",
+        "busan",
+        "traffic",
+      ];
+
+      // 선택한 카테고리 확인
+      const isNewsTraffic = selectedBlocks.some((block) =>
+        newsTrafficBlocks.includes(block)
+      );
+
+      // 뉴스·교통 = lofi
+      // 사연·음악 = piano
+      const mood = isNewsTraffic ? "lofi" : "piano";
+
+      console.log("🎵 선택된 BGM:", mood);
+
+      const response = await fetch(
+        `${BACKEND_URL}/api/bgm?mood=${mood}`
+      );
+
+      if (!response.ok) {
+        throw new Error("Jamendo BGM 검색 실패");
+      }
+
+      const data = await response.json();
+
+      if (data.bgm?.audio && bgmRef.current) {
+        bgmRef.current.pause();
+        bgmRef.current.src = data.bgm.audio;
+        bgmRef.current.volume = isNewsTraffic ? 0.25 : 0.4;
+        bgmRef.current.loop = true;
+        bgmRef.current.load();
+
+        console.log("✅ BGM 준비 완료:", data.bgm.title);
+      } else {
+        console.warn("⚠️ BGM을 불러오지 못했습니다.");
+      }
+    } catch (error) {
+      console.error("❌ BGM 로드 오류:", error);
+    }
+  };
+
 
   const handlePlayRadio = async () => {
     setLoading(true);
@@ -51,6 +116,7 @@ export default function Dashboard() {
         const data = await res.json();
         const fetchedScripts = data.scripts || [];
         setScripts(fetchedScripts);
+        await loadJamendoBGM();
 
         setModal({
           isOpen: true,
@@ -86,21 +152,36 @@ export default function Dashboard() {
     }
   };
 
-  const handleAudioEnded = () => {
-    const nextIndex = currentIndex + 1;
+  
 
-    if (nextIndex < scripts.length) {
-      setCurrentIndex(nextIndex);
-      const nextAudioUrl = scripts[nextIndex]?.audio_url;
+const handleAudioEnded = () => {
+  const nextIndex = currentIndex + 1;
 
-      if (nextAudioUrl && audioRef.current) {
-        audioRef.current.src = `${BACKEND_URL}${nextAudioUrl}`;
-        audioRef.current.play();
+  if (nextIndex < scripts.length) {
+    setCurrentIndex(nextIndex);
+
+    const nextAudioUrl = scripts[nextIndex]?.audio_url;
+
+    if (nextAudioUrl && audioRef.current) {
+      audioRef.current.src = new URL(
+        nextAudioUrl,
+        BACKEND_URL
+      ).href;
+
+      audioRef.current.play().catch(console.error);
+
+      // 다음 DJ 멘트에서도 BGM 계속 재생
+      if (bgmRef.current?.src) {
+        bgmRef.current.play().catch(console.error);
       }
-    } else {
-      setIsPlaying(false);
     }
-  };
+  } else {
+    // 방송이 완전히 끝났을 때만 BGM 종료
+    bgmRef.current?.pause();
+    setIsPlaying(false);
+  }
+};
+
 
   const isHeadline = selectedBlocks.includes("headline");
   const isBusan = selectedBlocks.includes("busan");
@@ -180,6 +261,8 @@ export default function Dashboard() {
 
     if (isPlaying) {
       audioRef.current.pause();
+      bgmRef.current?.pause();
+
       setIsPlaying(false);
     } else {
       const currentAudioUrl = scripts[currentIndex]?.audio_url;
@@ -189,7 +272,7 @@ export default function Dashboard() {
         return;
       }
 
-      const fullUrl = `${BACKEND_URL}${currentAudioUrl}`;
+      const fullUrl = new URL(currentAudioUrl, BACKEND_URL).href;
 
       if (audioRef.current.src !== fullUrl) {
         audioRef.current.src = fullUrl;
@@ -197,7 +280,17 @@ export default function Dashboard() {
 
       audioRef.current.play().then(() => {
         setIsPlaying(true);
-      }).catch((err) => {
+
+        if (
+          scripts[currentIndex]?.type !== "music_song" &&
+          bgmRef.current?.src
+        ) {
+          bgmRef.current.play().catch((err) => {
+            console.error("BGM 재생 오류:", err);
+          });
+        }
+      })
+      .catch((err) => {
         console.error("오디오 재생 오류:", err);
         setIsPlaying(false);
       });
