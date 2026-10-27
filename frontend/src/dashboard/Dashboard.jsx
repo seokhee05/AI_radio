@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import ContentsSelector from "./components/ContentsSelector";
+import YouTube from "react-youtube";
 
 const BACKEND_URL = "http://localhost:8000";
 
@@ -14,6 +15,7 @@ export default function Dashboard() {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef(null);
   const bgmRef = useRef(null);
+  const youtubeRef = useRef(null);
 
   const [modal, setModal] = useState({
     isOpen: false,
@@ -100,6 +102,10 @@ export default function Dashboard() {
 
 
   const handlePlayRadio = async () => {
+    audioRef.current?.pause();
+    bgmRef.current?.pause();
+    youtubeRef.current?.stopVideo();
+    youtubeRef.current = null;
     setLoading(true);
     setScripts([]);
     setIsPlaying(false);
@@ -154,34 +160,57 @@ export default function Dashboard() {
 
   
 
-const handleAudioEnded = () => {
-  const nextIndex = currentIndex + 1;
+  // DJ TTS와 YouTube 동영상을 한 방송 큐로 처리
+  const playSegment = async (index) => {
+    const segment = scripts[index];
+    if (!segment) {
+      audioRef.current?.pause();
+      bgmRef.current?.pause();
+      youtubeRef.current?.stopVideo();
+      setIsPlaying(false);
+      return;
+    }
 
-  if (nextIndex < scripts.length) {
-    setCurrentIndex(nextIndex);
+    setCurrentIndex(index);
+    if (segment.type === "music_song") {
+      audioRef.current?.pause();
+      bgmRef.current?.pause();
+      setIsPlaying(false); // iframe 준비 시 자동재생 시도, 차단되면 직접 재생
+      return;
+    }
 
-    const nextAudioUrl = scripts[nextIndex]?.audio_url;
-
-    if (nextAudioUrl && audioRef.current) {
-      audioRef.current.src = new URL(
-        nextAudioUrl,
-        BACKEND_URL
-      ).href;
-
-      audioRef.current.play().catch(console.error);
-
-      // 다음 DJ 멘트에서도 BGM 계속 재생
+    youtubeRef.current?.stopVideo();
+    if (!segment.audio_url || !audioRef.current) {
+      console.warn("재생 가능한 음성이 없습니다:", segment.type);
+      return;
+    }
+    audioRef.current.src = new URL(segment.audio_url, BACKEND_URL).href;
+    try {
+      await audioRef.current.play();
+      setIsPlaying(true);
       if (bgmRef.current?.src) {
         bgmRef.current.play().catch(console.error);
       }
+    } catch (error) {
+      console.error("TTS 재생 실패:", error);
+      setIsPlaying(false);
     }
-  } else {
-    // 방송이 완전히 끝났을 때만 BGM 종료
-    bgmRef.current?.pause();
-    setIsPlaying(false);
-  }
-};
+  };
 
+  const handleAudioEnded = () => {
+    playSegment(currentIndex + 1);
+  };
+
+  const handleYouTubeReady = (event) => {
+    youtubeRef.current = event.target;
+    // 브라우저 자동재생 정책으로 재생되지 않으면 플레이어에서 직접 시작할 수 있음
+    event.target.playVideo();
+  };
+
+  const handleYouTubeEnd = () => {
+    youtubeRef.current = null;
+    playSegment(currentIndex + 1);
+  };
 
   const isHeadline = selectedBlocks.includes("headline");
   const isBusan = selectedBlocks.includes("busan");
@@ -232,6 +261,8 @@ const handleAudioEnded = () => {
     const updatedScripts = scripts.filter((_, i) => i !== targetIdx);
 
     if (isPlaying && targetIdx === currentIndex) {
+      youtubeRef.current?.stopVideo();
+      bgmRef.current?.pause();
       if (audioRef.current) {
         audioRef.current.pause();
       }
@@ -256,50 +287,71 @@ const handleAudioEnded = () => {
     setScripts(updatedScripts);
   };
 
-  const togglePlayPause = () => {
-    if (!audioRef.current || scripts.length === 0) return;
+  const togglePlayPause = async () => {
+    if (scripts.length === 0) return;
+    const segment = scripts[currentIndex];
 
+    if (segment?.type === "music_song") {
+      if (!youtubeRef.current) return;
+      if (isPlaying) {
+        youtubeRef.current.pauseVideo();
+        setIsPlaying(false);
+      } else {
+        youtubeRef.current.playVideo();
+        setIsPlaying(true);
+      }
+      return;
+    }
+
+    if (!audioRef.current) return;
     if (isPlaying) {
       audioRef.current.pause();
       bgmRef.current?.pause();
-
       setIsPlaying(false);
     } else {
-      const currentAudioUrl = scripts[currentIndex]?.audio_url;
-
-      if (!currentAudioUrl) {
-        console.warn("재생할 오디오 URL이 없습니다.");
-        return;
-      }
-
-      const fullUrl = new URL(currentAudioUrl, BACKEND_URL).href;
-
+      if (!segment?.audio_url) return;
+      const fullUrl = new URL(segment.audio_url, BACKEND_URL).href;
       if (audioRef.current.src !== fullUrl) {
         audioRef.current.src = fullUrl;
       }
-
-      audioRef.current.play().then(() => {
+      try {
+        await audioRef.current.play();
         setIsPlaying(true);
-
-        if (
-          scripts[currentIndex]?.type !== "music_song" &&
-          bgmRef.current?.src
-        ) {
-          bgmRef.current.play().catch((err) => {
-            console.error("BGM 재생 오류:", err);
-          });
+        if (bgmRef.current?.src) {
+          bgmRef.current.play().catch(console.error);
         }
-      })
-      .catch((err) => {
-        console.error("오디오 재생 오류:", err);
+      } catch (error) {
+        console.error("음성 재생 실패:", error);
         setIsPlaying(false);
-      });
+      }
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 relative">
       <audio ref={audioRef} onEnded={handleAudioEnded} className="hidden" />
+      {scripts[currentIndex]?.type === "music_song" && (
+        <div className="fixed inset-x-3 bottom-3 z-40 mx-auto max-w-xl rounded-xl border bg-white p-3 shadow-2xl">
+          <p className="mb-2 text-sm font-semibold text-slate-800">
+            🎵 지금 재생할 곡: {scripts[currentIndex].artist} - {scripts[currentIndex].song}
+          </p>
+          <YouTube
+            key={scripts[currentIndex].video_id}
+            videoId={scripts[currentIndex].video_id}
+            onReady={handleYouTubeReady}
+            onEnd={handleYouTubeEnd}
+            onStateChange={(event) => {
+              if (event.data === 1) setIsPlaying(true);
+              if (event.data === 2 || event.data === 0) setIsPlaying(false);
+              if (event.data === 5) setIsPlaying(false);
+            }}
+            opts={{ width: "100%", height: "270", playerVars: { playsinline: 1 } }}
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            자동으로 시작되지 않으면 YouTube 플레이어에서 재생을 눌러주세요.
+          </p>
+        </div>
+      )}
 
       <div
         className={`mx-auto flex flex-col xl:flex-row gap-8 items-start transition-all duration-500 ease-in-out ${scripts.length > 0 ? "w-full max-w-[1700px]" : "max-w-2xl"
@@ -476,9 +528,15 @@ const handleAudioEnded = () => {
                       )}
                     </div>
 
-                    <p className="whitespace-pre-wrap text-left text-[15.5px] leading-relaxed text-slate-700 tracking-wide break-keep">
-                      {renderScriptContent(s)}
-                    </p>
+                    {s.type === "music_song" ? (
+                      <p className="text-left text-[15.5px] text-slate-700">
+                        🎵 YouTube 재생곡: {s.artist} - {s.song}
+                      </p>
+                    ) : (
+                      <p className="whitespace-pre-wrap text-left text-[15.5px] leading-relaxed text-slate-700 tracking-wide break-keep">
+                        {renderScriptContent(s)}
+                      </p>
+                    )}
                   </section>
                 );
               })}
