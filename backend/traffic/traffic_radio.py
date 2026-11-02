@@ -29,7 +29,7 @@ def fetch_its_highway_data() -> str:
 
     try:
         res_traffic = requests.get(
-            traffic_url, params=busan_area_params, timeout=5
+            traffic_url, params=busan_area_params, timeout=10
         )
         res_traffic.raise_for_status()
         data = res_traffic.json()
@@ -138,6 +138,7 @@ def run_traffic_radio(block_types, keyword=None, language="ko", prev_type=None, 
     2. 고속도로 상황을 먼저 다루고, 시내 도로 상황과 안전 운전 팁으로 매끄럽게 연결해주세요.
     3. 특정 시간대(심야, 새벽 등)에 국한되는 인사는 피해주세요.
     4. 분량이 너무 길지 않게 핵심 전달 위주로 깔끔하게 구성해주세요.
+    5. **음악/다음 곡/노래 소개 멘트는 절대 포함하지 말고**, 안전 운전을 당부하는 멘트로만 깔끔하게 코너를 마무리해주세요.
     """
 
     try:
